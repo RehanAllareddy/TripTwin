@@ -16,16 +16,31 @@ const KINDS: { value: ItemKind; label: string; icon: 'compass' }[] = [
   { value: 'lodging', label: 'Stay', icon: 'bed' as 'compass' },
 ];
 
+/** Sensible starting values per type, so a new plan needs as few edits as possible. */
+function newItem(kind: ItemKind, day: number, attendeeIds: string[], tripDays: number): ItineraryItem {
+  const base: ItineraryItem = { id: uid(), title: '', kind, day, start: '10:00', durationMin: 120, cost: 0, costType: 'perPerson', attendeeIds, refundable: true, flexible: true };
+  switch (kind) {
+    case 'flight':
+      return { ...base, start: '08:00', durationMin: 180, refundable: false, flexible: false, alternatives: 1 };
+    case 'transport':
+      return { ...base, start: '09:00', durationMin: 60, costType: 'group', alternatives: 1 };
+    case 'lodging':
+      return { ...base, day: 0, start: '15:00', durationMin: 60, costType: 'group', flexible: false, nights: Math.max(1, tripDays - 1) };
+    case 'food':
+      return { ...base, start: '19:00', durationMin: 90 };
+    default:
+      return base;
+  }
+}
+
 const duration = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''}`);
 
 export default function ItemEditor() {
-  const { tripId, itemId } = useLocalSearchParams<{ tripId: string; itemId?: string }>();
+  const { tripId, itemId, kind, day } = useLocalSearchParams<{ tripId: string; itemId?: string; kind?: ItemKind; day?: string }>();
   const { t, update, me, user, post } = useTrip(tripId);
   const nav = useNavigation();
   const existing = t?.items.find((i) => i.id === itemId);
-  const [it, setIt] = useState<ItineraryItem>(
-    existing ?? { id: uid(), title: '', kind: 'activity', day: 0, start: '10:00', durationMin: 120, cost: 0, costType: 'perPerson', attendeeIds: t?.memberIds ?? [], refundable: true, flexible: true },
-  );
+  const [it, setIt] = useState<ItineraryItem>(() => existing ?? newItem(kind ?? 'activity', Number(day) || 0, t?.memberIds ?? [], t?.days ?? 1));
   const [hasBackup, setHasBackup] = useState(!!existing?.backup);
   const [needsMin, setNeedsMin] = useState(!!existing?.minAttendees);
   const [costText, setCostText] = useState(existing?.cost ? String(existing.cost) : '');
@@ -34,6 +49,7 @@ export default function ItemEditor() {
   if (!t) return null;
 
   const set = <K extends keyof ItineraryItem>(k: K, v: ItineraryItem[K]) => setIt((x) => ({ ...x, [k]: v }));
+  const setKind = (k: ItemKind) => setIt((x) => (existing ? { ...x, kind: k } : { ...newItem(k, x.day, x.attendeeIds, t.days), id: x.id, title: x.title, cost: x.cost }));
   const isLodging = it.kind === 'lodging';
   const isTravel = it.kind === 'flight' || it.kind === 'transport';
   const canBeOutdoor = it.kind === 'activity' || it.kind === 'food';
@@ -71,7 +87,7 @@ export default function ItemEditor() {
           autoFocus={!existing}
           style={{ fontSize: 22, fontWeight: '700', color: C.text, paddingVertical: 4 }}
         />
-        <Segmented options={KINDS} value={it.kind} onChange={(k) => set('kind', k)} />
+        <Segmented options={KINDS} value={it.kind} onChange={setKind} />
       </Card>
 
       {/* 2. When */}

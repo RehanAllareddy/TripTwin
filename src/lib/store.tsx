@@ -56,9 +56,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (t.id !== id) return t;
         const next = fn(t);
         // Track resilience over time whenever the plan changes.
-        const score = computeResilience(next).score;
+        const r = computeResilience(next);
         const last = next.scoreHistory[next.scoreHistory.length - 1];
-        return last?.score === score ? next : { ...next, scoreHistory: [...next.scoreHistory, { at: Date.now(), score }].slice(-30) };
+        if (!r.ready || last?.score === r.score) return next;
+        return { ...next, scoreHistory: [...next.scoreHistory, { at: Date.now(), score: r.score }].slice(-30) };
       }),
     }));
   }, []);

@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
+import { SetupChecklist } from '@/components/setup-checklist';
 import { Body, Button, Card, Expandable, H2, Icon, Meter, Row, ScoreBadge, Screen, Stat, Sub, Tag } from '@/components/ui';
 import { C, S, scoreColor } from '@/constants/theme';
 import { settleUp, spent } from '@/lib/budget';
@@ -70,69 +71,75 @@ export default function Overview() {
         {t.phase === 'planning' && <Sub>{daysUntil(t) > 0 ? `${daysUntil(t)} days until ${t.destination}.` : 'Trip starts today!'} When you leave, tap Travel.</Sub>}
       </Card>
 
-      {/* Signature feature: one clear number, one sentence, one next step */}
-      <Card>
-        <Row gap={S.lg}>
-          <ScoreBadge score={r.score} label="/100" />
-          <View style={{ flex: 1, gap: 4 }}>
-            <Sub>TRIP RESILIENCE SCORE</Sub>
-            <Body bold size={22} color={scoreColor(r.score)}>{r.grade}</Body>
-            <Sub>{GRADE_LINE[r.grade]}</Sub>
-          </View>
-        </Row>
-        {weakest.score < 75 && (
-          <Body size={14}>
-            Weakest spot: <Body bold size={14}>{WEAK_LINE[weakest.key]}</Body>
-          </Body>
-        )}
-        <Button title="See what could go wrong" icon="flash" kind="twin" onPress={() => router.push(`/trip/${t.id}/twin`)} />
-      </Card>
-
-      {topTip && (
-        <Card style={{ borderWidth: 1.5, borderColor: C.lowSoft }}>
-          <Row>
-            <Icon name="bulb" color={C.med} />
-            <Body bold>Quick win</Body>
-            <View style={{ flex: 1 }} />
-            <Tag label={`+${topTip.gain} points`} color={C.low} bg={C.lowSoft} />
+      {r.ready ? (
+        <>
+        {/* Signature feature: one clear number, one sentence, one next step */}
+        <Card>
+          <Row gap={S.lg}>
+            <ScoreBadge score={r.score} label="/100" />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Sub>TRIP RESILIENCE SCORE</Sub>
+              <Body bold size={22} color={scoreColor(r.score)}>{r.grade}</Body>
+              <Sub>{GRADE_LINE[r.grade]}</Sub>
+            </View>
           </Row>
-          <Body size={15}>{topTip.text}</Body>
-          <Button small kind="ghost" title={topTip.itemId ? 'Fix it now' : 'Open budget'} icon="arrow-forward" onPress={() => openTip(topTip)} />
+          {weakest.score < 75 && (
+            <Body size={14}>
+              Weakest spot: <Body bold size={14}>{WEAK_LINE[weakest.key]}</Body>
+            </Body>
+          )}
+          <Button title="See what could go wrong" icon="flash" kind="twin" onPress={() => router.push(`/trip/${t.id}/twin`)} />
         </Card>
-      )}
 
-      <Expandable title="Why this score?" subtitle={`5 checks${r.tips.length > 1 ? ` · ${r.tips.length - 1} more ideas` : ''}`} icon="stats-chart">
-        {r.factors.map((f) => (
-          <View key={f.key} style={{ gap: 4 }}>
+        {topTip && (
+          <Card style={{ borderWidth: 1.5, borderColor: C.lowSoft }}>
             <Row>
-              <Body bold size={14}>{f.label}</Body>
+              <Icon name="bulb" color={C.med} />
+              <Body bold>Quick win</Body>
               <View style={{ flex: 1 }} />
-              <Body bold size={14} color={scoreColor(f.score)}>{f.score}</Body>
+              <Tag label={`+${topTip.gain} points`} color={C.low} bg={C.lowSoft} />
             </Row>
-            <Meter value={f.score / 100} />
-            <Sub>{f.summary}</Sub>
-          </View>
-        ))}
-        {history.length > 1 && (
-          <Row gap={3} style={{ alignItems: 'flex-end', height: 30, marginTop: 4 }}>
-            <Sub>Score over time </Sub>
-            {history.map((h, i) => (
-              <View key={i} style={{ width: 8, height: 4 + (h.score / 100) * 24, borderRadius: 2, backgroundColor: scoreColor(h.score) }} />
-            ))}
-          </Row>
+            <Body size={15}>{topTip.text}</Body>
+            <Button small kind="ghost" title={topTip.itemId ? 'Fix it now' : 'Open budget'} icon="arrow-forward" onPress={() => openTip(topTip)} />
+          </Card>
         )}
-        {r.tips.slice(1, 6).map((tip, i) => (
-          <Pressable key={i} onPress={() => openTip(tip)}>
-            <Row style={{ alignItems: 'flex-start', paddingVertical: 4 }}>
-              <Icon name="bulb-outline" color={C.med} />
-              <View style={{ flex: 1 }}>
-                <Body size={14}>{tip.text}</Body>
-              </View>
-              <Tag label={`+${tip.gain}`} color={C.low} bg={C.lowSoft} />
+
+        <Expandable title="Why this score?" subtitle={`5 checks${r.tips.length > 1 ? ` · ${r.tips.length - 1} more ideas` : ''}`} icon="stats-chart">
+          {r.factors.map((f) => (
+            <View key={f.key} style={{ gap: 4 }}>
+              <Row>
+                <Body bold size={14}>{f.label}</Body>
+                <View style={{ flex: 1 }} />
+                <Body bold size={14} color={scoreColor(f.score)}>{f.score}</Body>
+              </Row>
+              <Meter value={f.score / 100} />
+              <Sub>{f.summary}</Sub>
+            </View>
+          ))}
+          {history.length > 1 && (
+            <Row gap={3} style={{ alignItems: 'flex-end', height: 30, marginTop: 4 }}>
+              <Sub>Score over time </Sub>
+              {history.map((h, i) => (
+                <View key={i} style={{ width: 8, height: 4 + (h.score / 100) * 24, borderRadius: 2, backgroundColor: scoreColor(h.score) }} />
+              ))}
             </Row>
-          </Pressable>
-        ))}
-      </Expandable>
+          )}
+          {r.tips.slice(1, 6).map((tip, i) => (
+            <Pressable key={i} onPress={() => openTip(tip)}>
+              <Row style={{ alignItems: 'flex-start', paddingVertical: 4 }}>
+                <Icon name="bulb-outline" color={C.med} />
+                <View style={{ flex: 1 }}>
+                  <Body size={14}>{tip.text}</Body>
+                </View>
+                <Tag label={`+${tip.gain}`} color={C.low} bg={C.lowSoft} />
+              </Row>
+            </Pressable>
+          ))}
+        </Expandable>
+        </>
+      ) : (
+        <SetupChecklist trip={t} />
+      )}
 
       {t.phase === 'active' && (
         <Card>
@@ -174,7 +181,7 @@ export default function Overview() {
         </Card>
         <Card style={{ flex: 1 }} onPress={() => router.push(`/trip/${t.id}/group`)}>
           <Sub>Group</Sub>
-          <Body bold size={20}>{t.memberIds.length} travelers</Body>
+          <Body bold size={20}>{t.memberIds.length} traveler{t.memberIds.length === 1 ? '' : 's'}</Body>
           <Sub>{t.polls.filter((p) => !p.closed).length} open poll(s)</Sub>
           <Sub>Code {t.joinCode}</Sub>
         </Card>

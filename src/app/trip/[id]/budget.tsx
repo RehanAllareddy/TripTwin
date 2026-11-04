@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
 
@@ -14,8 +14,10 @@ const CATS = ['lodging', 'transport', 'food', 'activities', 'other'] as const;
 export default function Budget() {
   const id = useTripId();
   const { t, update, me, user, post } = useTrip(id);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  // Open straight into editing when there's no budget yet or the setup checklist sent us here.
+  const [editing, setEditing] = useState(() => edit === '1' || !t?.budget);
+  const [draft, setDraft] = useState(() => (t?.budget ? String(t.budget) : ''));
   if (!t) return null;
 
   const planned = plannedCost(t);
@@ -40,7 +42,7 @@ export default function Budget() {
         </Row>
         {editing ? (
           <Row>
-            <TextInput value={draft} onChangeText={setDraft} keyboardType="number-pad" autoFocus style={{ flex: 1, fontSize: 26, fontWeight: '800', color: C.text, borderBottomWidth: 1, borderColor: C.line }} />
+            <TextInput value={draft} onChangeText={setDraft} keyboardType="number-pad" placeholder="e.g. 3000" placeholderTextColor={C.faint} autoFocus style={{ flex: 1, fontSize: 26, fontWeight: '800', color: C.text, borderBottomWidth: 1, borderColor: C.line }} />
             <Button small title="Save" onPress={() => { update((x) => ({ ...x, budget: Number(draft) || 0 })); post(t.id, `${me.name} set the budget to ${money(Number(draft) || 0)}.`, true); setEditing(false); }} />
           </Row>
         ) : (

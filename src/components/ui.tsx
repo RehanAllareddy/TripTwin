@@ -10,9 +10,13 @@ export const Icon = ({ name, size = 18, color = C.text }: { name: IconName; size
   <Ionicons name={name} size={size} color={color} />
 );
 
+/** Readable column width on tablets and desktop browsers, so the app doesn't look stretched. */
+export const MAX_W = 760;
+export const centered = { width: '100%', maxWidth: MAX_W, alignSelf: 'center' } as const;
+
 export function Screen({ children, padded = true }: { children: ReactNode; padded?: boolean }) {
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: padded ? S.lg : 0, paddingBottom: 48, gap: S.md }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={[centered, { padding: padded ? S.lg : 0, paddingBottom: 48, gap: S.md }]} keyboardShouldPersistTaps="handled">
       {children}
     </ScrollView>
   );

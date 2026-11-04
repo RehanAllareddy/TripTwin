@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
-import { Pressable } from 'react-native';
+import { Pressable, useWindowDimensions } from 'react-native';
 
 import { Icon, type IconName } from '@/components/ui';
 import { C } from '@/constants/theme';
@@ -18,6 +18,8 @@ export default function TripTabs() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { trip } = useStore();
   const t = trip(id);
+  // Desktop / tablet: tabs become a left sidebar instead of a phone-style bottom bar.
+  const wide = useWindowDimensions().width >= 900;
   return (
     <TripIdContext.Provider value={id}>
     <Tabs
@@ -33,7 +35,12 @@ export default function TripTabs() {
         ),
         tabBarActiveTintColor: C.primary,
         tabBarInactiveTintColor: C.faint,
-        tabBarStyle: { borderTopColor: C.line },
+        tabBarPosition: wide ? 'left' : 'bottom',
+        tabBarVariant: wide ? 'material' : 'uikit',
+        tabBarLabelPosition: wide ? 'beside-icon' : 'below-icon',
+        tabBarStyle: wide ? { borderRightColor: C.line, backgroundColor: '#fff', minWidth: 200, paddingTop: 12 } : { borderTopColor: C.line },
+        tabBarItemStyle: wide ? { justifyContent: 'flex-start', paddingHorizontal: 12, borderRadius: 12, marginHorizontal: 8 } : undefined,
+        tabBarActiveBackgroundColor: wide ? C.primarySoft : undefined,
         sceneStyle: { backgroundColor: C.bg },
       }}>
       <Tabs.Screen name="index" options={tab('Overview', 'home')} />

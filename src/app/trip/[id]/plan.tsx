@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
-import { AvatarStack, Body, Button, Card, Chip, Empty, H2, Icon, Row, Screen, Segmented, Sub, Tag } from '@/components/ui';
+import { AvatarStack, Body, Button, Card, centered, Chip, H2, Icon, OptionCard, Row, Screen, Segmented, Sub, Tag, type IconName } from '@/components/ui';
 import { C, S } from '@/constants/theme';
 import { useTrip } from '@/lib/store';
 import { useTripId } from '@/lib/trip-id';
@@ -17,6 +17,13 @@ function status(i: ItineraryItem, conflict: boolean) {
   if (i.backup) return { label: 'Has Plan B', color: C.low, bg: C.lowSoft };
   return null;
 }
+
+const QUICK_ADD: { kind: ItineraryItem['kind']; title: string; hint: string; icon: IconName }[] = [
+  { kind: 'flight', title: 'A flight', hint: 'How you get there and back', icon: 'airplane' },
+  { kind: 'lodging', title: 'Where you’re staying', hint: 'Hotel, rental or a friend’s place', icon: 'bed' },
+  { kind: 'activity', title: 'Something to do', hint: 'A tour, show, hike or museum', icon: 'compass' },
+  { kind: 'food', title: 'A meal', hint: 'Reservations or a must-try spot', icon: 'restaurant' },
+];
 
 export default function Plan() {
   const id = useTripId();
@@ -41,7 +48,7 @@ export default function Plan() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ padding: S.lg, paddingBottom: 0, gap: S.sm }}>
+      <View style={[centered, { padding: S.lg, paddingBottom: 0, gap: S.sm }]}>
         <Segmented
           options={[{ value: 'schedule', label: 'Schedule', icon: 'calendar-outline' }, { value: 'bookings', label: 'Confirmations', icon: 'document-text-outline' }]}
           value={day === 'bookings' ? 'bookings' : 'schedule'}
@@ -49,7 +56,7 @@ export default function Plan() {
         />
       </View>
       {day !== 'bookings' && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: S.sm, paddingHorizontal: S.lg, paddingTop: S.sm }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[centered, { flexGrow: 0 }]} contentContainerStyle={{ gap: S.sm, paddingHorizontal: S.lg, paddingTop: S.sm }}>
           <Chip label="All days" active={day === 'all'} onPress={() => setDay('all')} />
           {Array.from({ length: t.days }, (_, d) => (
             <Chip key={d} label={`Day ${d + 1}`} active={day === d} onPress={() => setDay(d)} />
@@ -58,7 +65,17 @@ export default function Plan() {
         </ScrollView>
       )}
       <Screen>
-        <Button title="Add to plan" icon="add" onPress={() => open()} />
+        {t.items.length === 0 ? (
+          <Card style={{ gap: S.md }}>
+            <Body bold size={18}>Start your plan</Body>
+            <Sub>What do you already know about this trip? Pick one and we'll fill in the details.</Sub>
+            {QUICK_ADD.map((q) => (
+              <OptionCard key={q.kind} icon={q.icon} title={q.title} subtitle={q.hint} onPress={() => router.push({ pathname: '/item', params: { tripId: t.id, kind: q.kind } })} />
+            ))}
+          </Card>
+        ) : (
+          <Button title="Add to plan" icon="add" onPress={() => open()} />
+        )}
 
         {day === 'bookings' ? (
           <Card>
@@ -76,6 +93,8 @@ export default function Plan() {
             ))}
           </Card>
         ) : (
+          // An empty trip only shows the quick-add card above, not a list of blank days.
+          t.items.length > 0 &&
           days.map((d) => {
             const list = visible.filter((i) => i.day === d && i.kind !== 'lodging');
             const stay = visible.find((l) => l.kind === 'lodging' && d >= l.day && d < l.day + (l.nights ?? 1));
@@ -92,7 +111,12 @@ export default function Plan() {
                     </Row>
                   </Card>
                 )}
-                {list.length === 0 && <Empty icon="sunny-outline" text="Nothing planned yet" />}
+                {list.length === 0 && t.items.length > 0 && (
+                  <Pressable onPress={() => router.push({ pathname: '/item', params: { tripId: t.id, day: String(d) } })} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: S.lg, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line }}>
+                    <Icon name="add" color={C.primary} />
+                    <Body color={C.primary} bold size={14}>Add something to day {d + 1}</Body>
+                  </Pressable>
+                )}
                 {list.map((i) => (
                   <Card key={i.id} onPress={() => open(i)} style={conflicts.has(i.id) ? { borderWidth: 1.5, borderColor: C.high } : undefined}>
                     <Row style={{ alignItems: 'flex-start' }} gap={S.md}>

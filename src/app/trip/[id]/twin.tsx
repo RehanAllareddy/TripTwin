@@ -7,6 +7,8 @@ import { C, S } from '@/constants/theme';
 import { applyChanges, describeScenario, simulate, stressTest, type Scenario, type Severity, type SimResult } from '@/lib/simulate';
 import { useTrip } from '@/lib/store';
 import { useTripId } from '@/lib/trip-id';
+import { computeResilience } from '@/lib/resilience';
+import { SetupChecklist } from '@/components/setup-checklist';
 import type { Trip } from '@/lib/types';
 import { absStart, dayLabel, KIND_ICON, money, uid } from '@/lib/util';
 
@@ -124,6 +126,19 @@ export default function Twin() {
     setDone("Trip updated. Everyone's plan now reflects the change.");
     reset();
   };
+
+  // Nothing meaningful to test on an empty or half-built trip — guide the user instead.
+  if (!computeResilience(t).ready && !result) {
+    return (
+      <Screen>
+        <Card style={{ backgroundColor: C.twinSoft }}>
+          <Body bold size={18}>Nothing to test yet</Body>
+          <Sub>TripTwin tests your real plans: your flight, where you're staying, what you're doing and your budget. Add those and you can see what happens if things go wrong.</Sub>
+        </Card>
+        <SetupChecklist trip={t} title="Add these to start testing" subtitle="Takes about 2 minutes." />
+      </Screen>
+    );
+  }
 
   // ───────────── Step 2: one focused question for the chosen what-if ─────────────
   if (setup) {

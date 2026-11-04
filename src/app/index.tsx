@@ -71,8 +71,19 @@ export default function Home() {
                   <AvatarStack users={t.memberIds.map(user)} />
                 </View>
                 <View style={{ alignItems: 'center', gap: 4 }}>
-                  <ScoreBadge score={r.score} size={72} />
-                  <Sub>{r.grade}</Sub>
+                  {r.ready ? (
+                    <>
+                      <ScoreBadge score={r.score} size={72} />
+                      <Sub>{r.grade}</Sub>
+                    </>
+                  ) : (
+                    <>
+                      <View style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 6, borderColor: C.line, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
+                        <Body bold size={18} color={C.twin}>{r.setup.filter((x) => x.done).length}/{r.setup.length}</Body>
+                      </View>
+                      <Sub>Setting up</Sub>
+                    </>
+                  )}
                 </View>
               </Row>
             </Card>

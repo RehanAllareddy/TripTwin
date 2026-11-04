@@ -16,7 +16,18 @@ export interface Tip {
   gain: number;
 }
 
+export interface SetupStep {
+  key: 'travel' | 'stay' | 'activities' | 'budget';
+  label: string;
+  hint: string;
+  done: boolean;
+}
+
 export interface Resilience {
+  /** False until the trip has enough in it for the score to mean anything. */
+  ready: boolean;
+  /** What's still missing before we can score the trip honestly. */
+  setup: SetupStep[];
   score: number;
   grade: 'Fragile' | 'Shaky' | 'Steady' | 'Resilient' | 'Bulletproof';
   factors: Factor[];
@@ -41,7 +52,24 @@ function chainLength(id: string, byId: Map<string, ItineraryItem>, seen = new Se
   return 1 + Math.max(...it.dependsOn.map((d) => chainLength(d, byId, seen)));
 }
 
+/**
+ * A trip with nothing in it would otherwise score a perfect 100 (nothing can go wrong
+ * with no plans). We only score once the core of a trip exists.
+ */
+export function setupSteps(trip: Trip): SetupStep[] {
+  const has = (k: ItineraryItem['kind'][]) => trip.items.filter((i) => k.includes(i.kind)).length;
+  const steps: SetupStep[] = [
+    { key: 'travel', label: 'Add how you are getting there', hint: 'A flight, train or drive', done: has(['flight', 'transport']) > 0 },
+    { key: 'stay', label: "Add where you're staying", hint: 'Hotel, rental or friend’s place', done: trip.days <= 1 || has(['lodging']) > 0 },
+    { key: 'activities', label: 'Add at least 2 things to do', hint: `Activities or meals (${Math.min(2, has(['activity', 'food']))} of 2)`, done: has(['activity', 'food']) >= 2 },
+    { key: 'budget', label: 'Set a group budget', hint: 'So we can tell if you can afford surprises', done: trip.budget > 0 },
+  ];
+  return steps;
+}
+
 export function computeResilience(trip: Trip): Resilience {
+  const setup = setupSteps(trip);
+  const ready = setup.every((s) => s.done);
   const items = sortItems(trip.items);
   const tips: Tip[] = [];
   const timed = items.filter((i) => i.kind !== 'lodging');
@@ -115,5 +143,5 @@ export function computeResilience(trip: Trip): Resilience {
   ];
   const score = Math.round(factors.reduce((s, f) => s + f.score, 0) / factors.length);
   tips.sort((a, b) => b.gain - a.gain);
-  return { score, grade: gradeFor(score), factors, tips };
+  return { ready, setup, score, grade: gradeFor(score), factors, tips };
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
 
-import { Avatar, Body, Button, Card, Field, H2, Icon, Meter, Row, Screen, Segmented, Sub, Tag, styles } from '@/components/ui';
+import { Avatar, Body, Button, Card, centered, Field, H2, Icon, Meter, Row, Screen, Segmented, Sub, Tag, styles } from '@/components/ui';
 import { C, R, S } from '@/constants/theme';
 import { useTrip } from '@/lib/store';
 import { useTripId } from '@/lib/trip-id';
@@ -15,7 +15,7 @@ export default function Group() {
   const [tab, setTab] = useState<Tab>('chat');
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ padding: S.lg, paddingBottom: S.sm }}>
+      <View style={[centered, { padding: S.lg, paddingBottom: S.sm }]}>
         <Segmented
           options={[
             { value: 'chat', label: 'Chat', icon: 'chatbubble-outline' },
@@ -46,7 +46,7 @@ function Chat({ id }: { id: string }) {
   };
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={140}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: S.lg, gap: S.sm }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[centered, { padding: S.lg, gap: S.sm }]}>
         {t.messages.map((m) => {
           if (m.authorId === 'system')
             return (
@@ -67,11 +67,13 @@ function Chat({ id }: { id: string }) {
           );
         })}
       </ScrollView>
-      <Row style={{ padding: S.md, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line }}>
+      <Row style={{ padding: S.md, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line, justifyContent: 'center' }}>
+        <Row style={[centered, { flex: 1 }]}>
         <TextInput value={text} onChangeText={setText} placeholder={`Message as ${me.name}…`} placeholderTextColor={C.faint} style={[styles.input, { flex: 1 }]} onSubmitEditing={send} returnKeyType="send" />
         <Pressable onPress={send} accessibilityLabel="Send" style={{ backgroundColor: C.primary, borderRadius: 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="send" color="#fff" />
         </Pressable>
+        </Row>
       </Row>
     </KeyboardAvoidingView>
   );
