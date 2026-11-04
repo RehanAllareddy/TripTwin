@@ -1,17 +1,17 @@
-import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
 
 import { Avatar, Body, Button, Card, Chip, Field, H2, Icon, Meter, Row, Screen, Sub, Tag, styles } from '@/components/ui';
 import { C, R, S } from '@/constants/theme';
 import { useTrip } from '@/lib/store';
+import { useTripId } from '@/lib/trip-id';
 import type { Task } from '@/lib/types';
 import { uid } from '@/lib/util';
 
 type Tab = 'chat' | 'polls' | 'tasks' | 'people';
 
 export default function Group() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useTripId();
   const [tab, setTab] = useState<Tab>('chat');
   return (
     <View style={{ flex: 1 }}>

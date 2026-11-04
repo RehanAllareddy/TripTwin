@@ -6,6 +6,7 @@ import { Avatar, Body, Button, Card, Chip, H2, Icon, Row, ScoreBadge, Screen, St
 import { C, S } from '@/constants/theme';
 import { applyChanges, describeScenario, simulate, stressTest, type Scenario, type Severity, type SimResult } from '@/lib/simulate';
 import { useTrip } from '@/lib/store';
+import { useTripId } from '@/lib/trip-id';
 import { money, uid } from '@/lib/util';
 
 type Kind = Scenario['kind'];
@@ -23,7 +24,8 @@ const SEV: Record<Severity, { c: string; bg: string; label: string }> = {
 };
 
 export default function Twin() {
-  const { id, live } = useLocalSearchParams<{ id: string; live?: string }>();
+  const id = useTripId();
+  const { live } = useLocalSearchParams<{ live?: string }>();
   const { t, update, state, me, user, post } = useTrip(id);
   const isLive = live === '1' || t?.phase === 'active';
 

@@ -5,6 +5,7 @@ import { Pressable } from 'react-native';
 import { Icon, type IconName } from '@/components/ui';
 import { C } from '@/constants/theme';
 import { useStore } from '@/lib/store';
+import { TripIdContext } from '@/lib/trip-id';
 
 const tab = (title: string, icon: IconName) => ({
   title,
@@ -18,6 +19,7 @@ export default function TripTabs() {
   const { trip } = useStore();
   const t = trip(id);
   return (
+    <TripIdContext.Provider value={id}>
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: C.bg },
@@ -40,5 +42,6 @@ export default function TripTabs() {
       <Tabs.Screen name="budget" options={tab('Budget', 'wallet')} />
       <Tabs.Screen name="group" options={tab('Group', 'chatbubbles')} />
     </Tabs>
+    </TripIdContext.Provider>
   );
 }

@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { Body, Button, Card, H2, Icon, Meter, Row, ScoreBadge, Screen, Stat, Sub, Tag } from '@/components/ui';
@@ -6,6 +6,7 @@ import { C, S, scoreColor } from '@/constants/theme';
 import { settleUp, spent } from '@/lib/budget';
 import { computeResilience } from '@/lib/resilience';
 import { useTrip } from '@/lib/store';
+import { useTripId } from '@/lib/trip-id';
 import type { TripPhase } from '@/lib/types';
 import { clamp, dayLabel, daysUntil, fmtTime, KIND_ICON, money, plannedCost, sortItems } from '@/lib/util';
 
@@ -16,7 +17,7 @@ const PHASES: { key: TripPhase; label: string; icon: 'create' | 'navigate' | 'fl
 ];
 
 export default function Overview() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useTripId();
   const { t, update, me, user, post } = useTrip(id);
   if (!t) return null;
   const r = computeResilience(t);

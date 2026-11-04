@@ -1,15 +1,16 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { AvatarStack, Body, Button, Card, Chip, Empty, H2, Icon, Row, Screen, Sub, Tag } from '@/components/ui';
 import { C, S } from '@/constants/theme';
 import { useTrip } from '@/lib/store';
+import { useTripId } from '@/lib/trip-id';
 import type { ItineraryItem } from '@/lib/types';
 import { absEnd, absStart, dayLabel, fmtTime, KIND_ICON, money, sortItems } from '@/lib/util';
 
 export default function Plan() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useTripId();
   const { t, me, user } = useTrip(id);
   const [day, setDay] = useState<number | 'all' | 'bookings'>('all');
   const [mine, setMine] = useState(false);

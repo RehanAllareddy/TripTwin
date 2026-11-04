@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
 
@@ -6,12 +6,13 @@ import { Avatar, Body, Button, Card, H2, Icon, Meter, Row, Screen, Stat, Sub } f
 import { C, S } from '@/constants/theme';
 import { balances, settleUp, spent, spentByCategory } from '@/lib/budget';
 import { useTrip } from '@/lib/store';
+import { useTripId } from '@/lib/trip-id';
 import { money, plannedCost, uid } from '@/lib/util';
 
 const CATS = ['lodging', 'transport', 'food', 'activities', 'other'] as const;
 
 export default function Budget() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useTripId();
   const { t, update, me, user, post } = useTrip(id);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
