@@ -9,7 +9,7 @@
 import { balances } from './budget';
 import { computeResilience } from './resilience';
 import type { ID, ItineraryItem, Trip, User } from './types';
-import { absEnd, absStart, fromMin, money, plannedCost, toMin, uid } from './util';
+import { absEnd, absStart, fmtTime, fromMin, money, plannedCost, toMin, uid } from './util';
 
 export type Scenario =
   | { kind: 'flightDelay'; itemId: ID; hours: number }
@@ -110,7 +110,8 @@ function overlapsSomeone(trip: Trip, candidate: ItineraryItem, day: number, star
 /** Find the earliest open slot for an item from `fromAbs` onward. */
 function findSlot(trip: Trip, item: ItineraryItem, fromAbs: number): { day: number; start: string } | null {
   for (let day = Math.floor(fromAbs / 1440); day < trip.days; day++) {
-    const earliest = day === Math.floor(fromAbs / 1440) ? fromAbs % 1440 : 9 * 60;
+    // Never suggest moving plans into the middle of the night.
+    const earliest = Math.max(9 * 60, day === Math.floor(fromAbs / 1440) ? fromAbs % 1440 : 0);
     for (let m = Math.ceil(earliest / 30) * 30; m + item.durationMin <= LATEST_END; m += 30) {
       if (!overlapsSomeone(trip, item, day, m)) return { day, start: fromMin(m) };
     }
@@ -177,7 +178,7 @@ export function simulate(trip: Trip, scenarios: Scenario[], users: User[]): SimR
             const slot = findSlot(twin, g, arrival + BUFFER);
             impacts.push({ severity: 'medium', itemId: g.id, title: `${g.title} overlaps the delay`, detail: 'This plan is flexible and can be moved.' });
             if (slot)
-              fixes.push({ id: uid(), label: `Move ${g.title} to day ${slot.day + 1}, ${slot.start}`, detail: 'Next open slot for everyone attending.', costDelta: 0, changes: [{ op: 'update', itemId: g.id, patch: slot }] });
+              fixes.push({ id: uid(), label: `Move ${g.title} to day ${slot.day + 1} at ${fmtTime(slot.start)}`, detail: 'Next open slot for everyone attending.', costDelta: 0, changes: [{ op: 'update', itemId: g.id, patch: slot }] });
           } else if (g.refundable) {
             impacts.push({ severity: 'high', itemId: g.id, title: `You'll miss ${g.title}`, detail: `It's fixed-time but refundable — cancel to recover ${money(g.cost)}.` });
             fixes.push({ id: uid(), label: `Cancel ${g.title} & get refund`, detail: `Recovers ${money(g.cost)}.`, costDelta: -g.cost, changes: [{ op: 'remove', itemId: g.id }] });
@@ -287,7 +288,7 @@ export function simulate(trip: Trip, scenarios: Scenario[], users: User[]): SimR
             if (!it.refundable) lostMoney += it.cost;
             const slot = it.flexible ? findSlot({ ...twin, items: twin.items }, it, (s.day + 1) * 1440) : null;
             if (slot)
-              fixes.push({ id: uid(), label: `Move ${it.title} to day ${slot.day + 1}`, detail: `Open slot at ${slot.start}.`, costDelta: 0, changes: [{ op: 'update', itemId: it.id, patch: slot }] });
+              fixes.push({ id: uid(), label: `Move ${it.title} to day ${slot.day + 1}`, detail: `Everyone going is free at ${fmtTime(slot.start)}.`, costDelta: 0, changes: [{ op: 'update', itemId: it.id, patch: slot }] });
           }
         }
         break;

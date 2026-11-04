@@ -2,12 +2,21 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
-import { AvatarStack, Body, Button, Card, Chip, Empty, H2, Icon, Row, Screen, Sub, Tag } from '@/components/ui';
+import { AvatarStack, Body, Button, Card, Chip, Empty, H2, Icon, Row, Screen, Segmented, Sub, Tag } from '@/components/ui';
 import { C, S } from '@/constants/theme';
 import { useTrip } from '@/lib/store';
 import { useTripId } from '@/lib/trip-id';
 import type { ItineraryItem } from '@/lib/types';
 import { absEnd, absStart, dayLabel, fmtTime, KIND_ICON, money, sortItems } from '@/lib/util';
+
+/** The single most important thing to know about a plan, or nothing if it's fine. */
+function status(i: ItineraryItem, conflict: boolean) {
+  if (conflict) return { label: 'Overlaps another plan', color: C.high, bg: C.highSoft };
+  if (i.outdoor && !i.backup) return { label: 'No rain plan', color: C.med, bg: C.medSoft };
+  if (!i.refundable && i.cost > 0) return { label: 'Non-refundable', color: C.sub, bg: C.line };
+  if (i.backup) return { label: 'Has Plan B', color: C.low, bg: C.lowSoft };
+  return null;
+}
 
 export default function Plan() {
   const id = useTripId();
@@ -32,14 +41,22 @@ export default function Plan() {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: S.sm, padding: S.lg, paddingBottom: 0 }}>
-        <Chip label="All days" active={day === 'all'} onPress={() => setDay('all')} />
-        {Array.from({ length: t.days }, (_, d) => (
-          <Chip key={d} label={`Day ${d + 1}`} active={day === d} onPress={() => setDay(d)} />
-        ))}
-        <Chip label="Bookings" icon="document-text" active={day === 'bookings'} onPress={() => setDay('bookings')} />
-        <Chip label="Only mine" icon="person" active={mine} color={C.twin} onPress={() => setMine(!mine)} />
-      </ScrollView>
+      <View style={{ padding: S.lg, paddingBottom: 0, gap: S.sm }}>
+        <Segmented
+          options={[{ value: 'schedule', label: 'Schedule', icon: 'calendar-outline' }, { value: 'bookings', label: 'Confirmations', icon: 'document-text-outline' }]}
+          value={day === 'bookings' ? 'bookings' : 'schedule'}
+          onChange={(v) => setDay(v === 'bookings' ? 'bookings' : 'all')}
+        />
+      </View>
+      {day !== 'bookings' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: S.sm, paddingHorizontal: S.lg, paddingTop: S.sm }}>
+          <Chip label="All days" active={day === 'all'} onPress={() => setDay('all')} />
+          {Array.from({ length: t.days }, (_, d) => (
+            <Chip key={d} label={`Day ${d + 1}`} active={day === d} onPress={() => setDay(d)} />
+          ))}
+          <Chip label={mine ? 'Just me ✓' : 'Just me'} icon="person" active={mine} color={C.twin} onPress={() => setMine(!mine)} />
+        </ScrollView>
+      )}
       <Screen>
         <Button title="Add to plan" icon="add" onPress={() => open()} />
 
@@ -72,7 +89,6 @@ export default function Plan() {
                     <Row>
                       <Icon name="bed" color={C.primary} />
                       <Body size={14}>Staying at <Body bold size={14}>{stay.title}</Body></Body>
-                      {!stay.backup && <Tag label="no backup" color={C.med} bg={C.medSoft} />}
                     </Row>
                   </Card>
                 )}
@@ -86,13 +102,10 @@ export default function Plan() {
                       <View style={{ flex: 1, gap: 3 }}>
                         <Sub>{fmtTime(i.start)} · {i.durationMin >= 60 ? `${Math.round(i.durationMin / 6) / 10}h` : `${i.durationMin}m`}</Sub>
                         <Body bold>{i.title}</Body>
-                        <Row gap={4} style={{ flexWrap: 'wrap' }}>
-                          {conflicts.has(i.id) && <Tag label="schedule conflict" color={C.high} bg={C.highSoft} />}
-                          {i.outdoor && <Tag label={i.backup ? 'outdoor · has plan B' : 'outdoor · no plan B'} color={i.backup ? C.low : C.med} bg={i.backup ? C.lowSoft : C.medSoft} />}
-                          {!i.refundable && i.cost > 0 && <Tag label="non-refundable" color={C.high} bg={C.highSoft} />}
-                          {i.flexible && <Tag label="flexible" color={C.twin} bg={C.twinSoft} />}
-                          {!!i.dependsOn?.length && <Tag label={`needs ${t.items.find((x) => x.id === i.dependsOn![0])?.title ?? 'another booking'}`} color={C.sub} bg={C.line} />}
-                        </Row>
+                        {(() => {
+                          const st = status(i, conflicts.has(i.id));
+                          return st && <Tag label={st.label} color={st.color} bg={st.bg} />;
+                        })()}
                       </View>
                       <View style={{ alignItems: 'flex-end', gap: 6 }}>
                         <Body bold size={14}>{i.cost ? money(i.cost) : 'Free'}</Body>

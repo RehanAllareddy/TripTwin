@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
 
-import { Avatar, Body, Button, Card, Chip, Field, H2, Icon, Meter, Row, Screen, Sub, Tag, styles } from '@/components/ui';
+import { Avatar, Body, Button, Card, Field, H2, Icon, Meter, Row, Screen, Segmented, Sub, Tag, styles } from '@/components/ui';
 import { C, R, S } from '@/constants/theme';
 import { useTrip } from '@/lib/store';
 import { useTripId } from '@/lib/trip-id';
@@ -15,12 +15,18 @@ export default function Group() {
   const [tab, setTab] = useState<Tab>('chat');
   return (
     <View style={{ flex: 1 }}>
-      <Row style={{ padding: S.lg, paddingBottom: S.sm }}>
-        <Chip label="Chat" icon="chatbubble" active={tab === 'chat'} onPress={() => setTab('chat')} />
-        <Chip label="Polls" icon="stats-chart" active={tab === 'polls'} onPress={() => setTab('polls')} />
-        <Chip label="To-dos" icon="checkbox" active={tab === 'tasks'} onPress={() => setTab('tasks')} />
-        <Chip label="People" icon="people" active={tab === 'people'} onPress={() => setTab('people')} />
-      </Row>
+      <View style={{ padding: S.lg, paddingBottom: S.sm }}>
+        <Segmented
+          options={[
+            { value: 'chat', label: 'Chat', icon: 'chatbubble-outline' },
+            { value: 'polls', label: 'Polls', icon: 'stats-chart-outline' },
+            { value: 'tasks', label: 'To-dos', icon: 'checkbox-outline' },
+            { value: 'people', label: 'People', icon: 'people-outline' },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      </View>
       {tab === 'chat' && <Chat id={id} />}
       {tab === 'polls' && <Polls id={id} />}
       {tab === 'tasks' && <Tasks id={id} />}
@@ -177,10 +183,7 @@ function Tasks({ id }: { id: string }) {
       })}
       <Card>
         <Field label="Add item" placeholder="Book dinner reservation" value={title} onChangeText={setTitle} />
-        <Row>
-          <Chip label="Trip prep" active={list === 'prep'} onPress={() => setList('prep')} />
-          <Chip label="Packing" active={list === 'packing'} onPress={() => setList('packing')} />
-        </Row>
+        <Segmented options={[{ value: 'prep', label: 'To-do' }, { value: 'packing', label: 'Packing list' }]} value={list} onChange={setList} />
         <Button title="Add" icon="add" disabled={!title.trim()} onPress={() => { update((x) => ({ ...x, tasks: [...x.tasks, { id: uid(), title: title.trim(), done: false, list }] })); setTitle(''); }} />
         <Sub>Tap an avatar to assign the task to someone.</Sub>
       </Card>

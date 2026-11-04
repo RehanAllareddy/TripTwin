@@ -1,14 +1,20 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, Text, TextInput } from 'react-native';
 
-import { Avatar, Button, Card, Chip, Field, H2, Row, Screen, Sub } from '@/components/ui';
-import { S } from '@/constants/theme';
+import { Avatar, Button, Card, Field, H2, PeoplePicker, Row, Screen, Segmented, Sub, styles } from '@/components/ui';
+import { C, S } from '@/constants/theme';
 import { useTrip } from '@/lib/store';
 import type { Expense } from '@/lib/types';
 import { money, uid } from '@/lib/util';
 
-const CATS: Expense['category'][] = ['food', 'activities', 'transport', 'lodging', 'other'];
+const CATS: { value: Expense['category']; label: string; icon: 'restaurant' }[] = [
+  { value: 'food', label: 'Food', icon: 'restaurant' },
+  { value: 'activities', label: 'Fun', icon: 'ticket' as 'restaurant' },
+  { value: 'transport', label: 'Travel', icon: 'car' as 'restaurant' },
+  { value: 'lodging', label: 'Stay', icon: 'bed' as 'restaurant' },
+  { value: 'other', label: 'Other', icon: 'pricetag' as 'restaurant' },
+];
 
 export default function AddExpense() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -24,37 +30,31 @@ export default function AddExpense() {
   return (
     <Screen>
       <Card>
-        <Field label="What for?" placeholder="Groceries" value={title} onChangeText={setTitle} />
-        <Field label="Amount ($)" placeholder="0" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
-        <Row style={{ flexWrap: 'wrap' }}>
-          {CATS.map((c) => <Chip key={c} label={c} active={category === c} onPress={() => setCategory(c)} />)}
+        <Row>
+          <Text style={{ fontSize: 28, fontWeight: '800', color: C.sub }}>$</Text>
+          <TextInput value={amount} onChangeText={setAmount} placeholder="0" placeholderTextColor={C.faint} keyboardType="decimal-pad" autoFocus style={[styles.input, { flex: 1, fontSize: 26, fontWeight: '800', borderWidth: 0 }]} />
         </Row>
+        <Field label="What was it for?" placeholder="Groceries" value={title} onChangeText={setTitle} />
+        <Segmented options={CATS} value={category} onChange={setCategory} />
       </Card>
       <Card>
-        <H2>Paid by</H2>
+        <H2>Who paid?</H2>
         <Row style={{ flexWrap: 'wrap' }} gap={S.md}>
           {t.memberIds.map((m) => (
-            <Pressable key={m} onPress={() => setPaidById(m)} style={{ alignItems: 'center', opacity: paidById === m ? 1 : 0.3 }}>
-              <Avatar user={user(m)} size={38} />
-              <Sub>{user(m)?.name}</Sub>
+            <Pressable key={m} onPress={() => setPaidById(m)} accessibilityRole="radio" accessibilityState={{ selected: paidById === m }} style={{ alignItems: 'center', opacity: paidById === m ? 1 : 0.3 }}>
+              <Avatar user={user(m)} size={40} />
+              <Sub>{m === me.id ? 'Me' : user(m)?.name}</Sub>
             </Pressable>
           ))}
         </Row>
       </Card>
       <Card>
         <H2>Split between</H2>
-        <Row style={{ flexWrap: 'wrap' }} gap={S.md}>
-          {t.memberIds.map((m) => (
-            <Pressable key={m} onPress={() => setSplit((s) => (s.includes(m) ? s.filter((x) => x !== m) : [...s, m]))} style={{ alignItems: 'center', opacity: split.includes(m) ? 1 : 0.3 }}>
-              <Avatar user={user(m)} size={38} />
-              <Sub>{user(m)?.name}</Sub>
-            </Pressable>
-          ))}
-        </Row>
+        <PeoplePicker ids={t.memberIds} selected={split} onChange={setSplit} userOf={user} />
         {split.length > 0 && amt > 0 && <Sub>{money(amt / split.length)} each</Sub>}
       </Card>
       <Button
-        title="Add expense"
+        title={amt ? `Add ${money(amt)}` : 'Add expense'}
         icon="checkmark"
         disabled={!title.trim() || !amt || !split.length}
         onPress={() => {

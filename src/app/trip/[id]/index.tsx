@@ -1,10 +1,10 @@
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
-import { Body, Button, Card, H2, Icon, Meter, Row, ScoreBadge, Screen, Stat, Sub, Tag } from '@/components/ui';
+import { Body, Button, Card, Expandable, H2, Icon, Meter, Row, ScoreBadge, Screen, Stat, Sub, Tag } from '@/components/ui';
 import { C, S, scoreColor } from '@/constants/theme';
 import { settleUp, spent } from '@/lib/budget';
-import { computeResilience } from '@/lib/resilience';
+import { computeResilience, type Factor, type Resilience, type Tip } from '@/lib/resilience';
 import { useTrip } from '@/lib/store';
 import { useTripId } from '@/lib/trip-id';
 import type { TripPhase } from '@/lib/types';
@@ -15,6 +15,22 @@ const PHASES: { key: TripPhase; label: string; icon: 'create' | 'navigate' | 'fl
   { key: 'active', label: 'Travel', icon: 'navigate' },
   { key: 'complete', label: 'Wrap up', icon: 'flag' },
 ];
+
+const GRADE_LINE: Record<Resilience['grade'], string> = {
+  Fragile: 'One surprise could unravel this trip. A few small changes will help a lot.',
+  Shaky: 'Some surprises would really hurt. See the quick win below.',
+  Steady: 'Handles most surprises. A couple of gaps left.',
+  Resilient: 'Ready for most things that could go wrong.',
+  Bulletproof: 'This trip can take almost anything. Nice planning!',
+};
+
+const WEAK_LINE: Record<Factor['key'], string> = {
+  schedule: 'plans are packed back-to-back with little wiggle room.',
+  budget: "there's not much money left over for surprises.",
+  transport: 'few backup options if a flight or ride falls through.',
+  dependencies: 'several bookings rely on each other, so one problem can knock over others.',
+  backups: "some outdoor plans and stays don't have a Plan B.",
+};
 
 export default function Overview() {
   const id = useTripId();
@@ -27,6 +43,10 @@ export default function Overview() {
   const today = clamp(-daysUntil(t), 0, t.days - 1);
   const todays = sortItems(t.items.filter((i) => i.day === today && i.kind !== 'lodging'));
   const history = t.scoreHistory.slice(-8);
+  const weakest = [...r.factors].sort((a, b) => a.score - b.score)[0];
+  const topTip = r.tips[0];
+  const openTip = (tip: Tip) =>
+    tip.itemId ? router.push({ pathname: '/item', params: { tripId: t.id, itemId: tip.itemId } }) : router.push(`/trip/${t.id}/budget`);
 
   const setPhase = (phase: TripPhase) => {
     update((x) => ({ ...x, phase }));
@@ -47,29 +67,43 @@ export default function Overview() {
             </Pressable>
           ))}
         </Row>
-        {t.phase === 'planning' && <Sub>{daysUntil(t) > 0 ? `${daysUntil(t)} days until ${t.destination}.` : 'Trip starts today!'} Tap a stage to move the trip forward.</Sub>}
+        {t.phase === 'planning' && <Sub>{daysUntil(t) > 0 ? `${daysUntil(t)} days until ${t.destination}.` : 'Trip starts today!'} When you leave, tap Travel.</Sub>}
       </Card>
 
-      {/* Signature feature */}
+      {/* Signature feature: one clear number, one sentence, one next step */}
       <Card>
         <Row gap={S.lg}>
           <ScoreBadge score={r.score} label="/100" />
           <View style={{ flex: 1, gap: 4 }}>
             <Sub>TRIP RESILIENCE SCORE</Sub>
             <Body bold size={22} color={scoreColor(r.score)}>{r.grade}</Body>
-            <Sub>How well this plan holds up when things go wrong.</Sub>
-            {history.length > 1 && (
-              <Row gap={3} style={{ alignItems: 'flex-end', height: 26 }}>
-                {history.map((h, i) => (
-                  <View key={i} style={{ width: 8, height: 4 + (h.score / 100) * 22, borderRadius: 2, backgroundColor: scoreColor(h.score) }} />
-                ))}
-                <Sub> trend</Sub>
-              </Row>
-            )}
+            <Sub>{GRADE_LINE[r.grade]}</Sub>
           </View>
         </Row>
+        {weakest.score < 75 && (
+          <Body size={14}>
+            Weakest spot: <Body bold size={14}>{WEAK_LINE[weakest.key]}</Body>
+          </Body>
+        )}
+        <Button title="See what could go wrong" icon="flash" kind="twin" onPress={() => router.push(`/trip/${t.id}/twin`)} />
+      </Card>
+
+      {topTip && (
+        <Card style={{ borderWidth: 1.5, borderColor: C.lowSoft }}>
+          <Row>
+            <Icon name="bulb" color={C.med} />
+            <Body bold>Quick win</Body>
+            <View style={{ flex: 1 }} />
+            <Tag label={`+${topTip.gain} points`} color={C.low} bg={C.lowSoft} />
+          </Row>
+          <Body size={15}>{topTip.text}</Body>
+          <Button small kind="ghost" title={topTip.itemId ? 'Fix it now' : 'Open budget'} icon="arrow-forward" onPress={() => openTip(topTip)} />
+        </Card>
+      )}
+
+      <Expandable title="Why this score?" subtitle={`5 checks${r.tips.length > 1 ? ` · ${r.tips.length - 1} more ideas` : ''}`} icon="stats-chart">
         {r.factors.map((f) => (
-          <View key={f.key} style={{ gap: 4, marginTop: 4 }}>
+          <View key={f.key} style={{ gap: 4 }}>
             <Row>
               <Body bold size={14}>{f.label}</Body>
               <View style={{ flex: 1 }} />
@@ -79,25 +113,26 @@ export default function Overview() {
             <Sub>{f.summary}</Sub>
           </View>
         ))}
-        <Button title="Stress test this trip" icon="flash" kind="twin" onPress={() => router.push(`/trip/${t.id}/twin`)} />
-      </Card>
-
-      {r.tips.length > 0 && (
-        <Card>
-          <H2>Make it stronger</H2>
-          {r.tips.slice(0, 4).map((tip, i) => (
-            <Pressable key={i} onPress={() => tip.itemId && router.push({ pathname: '/item', params: { tripId: t.id, itemId: tip.itemId } })}>
-              <Row style={{ alignItems: 'flex-start', paddingVertical: 4 }}>
-                <Icon name="bulb-outline" color={C.med} />
-                <View style={{ flex: 1 }}>
-                  <Body size={14}>{tip.text}</Body>
-                </View>
-                <Tag label={`+${tip.gain}`} color={C.low} bg={C.lowSoft} />
-              </Row>
-            </Pressable>
-          ))}
-        </Card>
-      )}
+        {history.length > 1 && (
+          <Row gap={3} style={{ alignItems: 'flex-end', height: 30, marginTop: 4 }}>
+            <Sub>Score over time </Sub>
+            {history.map((h, i) => (
+              <View key={i} style={{ width: 8, height: 4 + (h.score / 100) * 24, borderRadius: 2, backgroundColor: scoreColor(h.score) }} />
+            ))}
+          </Row>
+        )}
+        {r.tips.slice(1, 6).map((tip, i) => (
+          <Pressable key={i} onPress={() => openTip(tip)}>
+            <Row style={{ alignItems: 'flex-start', paddingVertical: 4 }}>
+              <Icon name="bulb-outline" color={C.med} />
+              <View style={{ flex: 1 }}>
+                <Body size={14}>{tip.text}</Body>
+              </View>
+              <Tag label={`+${tip.gain}`} color={C.low} bg={C.lowSoft} />
+            </Row>
+          </Pressable>
+        ))}
+      </Expandable>
 
       {t.phase === 'active' && (
         <Card>

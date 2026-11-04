@@ -1,27 +1,52 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { Avatar, Body, Button, Card, Chip, H2, Icon, Row, ScoreBadge, Screen, Stat, Sub, Tag, type IconName } from '@/components/ui';
+import { Body, Button, Card, H2, Icon, OptionCard, PeoplePicker, Row, ScoreBadge, Screen, Segmented, Stat, Sub, Tag, styles, type IconName } from '@/components/ui';
 import { C, S } from '@/constants/theme';
 import { applyChanges, describeScenario, simulate, stressTest, type Scenario, type Severity, type SimResult } from '@/lib/simulate';
 import { useTrip } from '@/lib/store';
 import { useTripId } from '@/lib/trip-id';
-import { money, uid } from '@/lib/util';
+import type { Trip } from '@/lib/types';
+import { absStart, dayLabel, KIND_ICON, money, uid } from '@/lib/util';
 
 type Kind = Scenario['kind'];
-const TYPES: { k: Kind; label: string; icon: IconName }[] = [
-  { k: 'flightDelay', label: 'Flight delay', icon: 'airplane' },
-  { k: 'dropout', label: 'People drop out', icon: 'person-remove' },
-  { k: 'lodgingCancel', label: 'Lodging cancelled', icon: 'bed' },
-  { k: 'rain', label: 'Rain day', icon: 'rainy' },
-  { k: 'budgetCut', label: 'Budget cut', icon: 'trending-down' },
+
+const WHAT_IFS: { k: Kind; q: string; hint: string; icon: IconName }[] = [
+  { k: 'flightDelay', q: 'Our flight is delayed', hint: 'See which plans you would miss', icon: 'airplane' },
+  { k: 'dropout', q: "Someone can't come", hint: 'See how costs shift for everyone else', icon: 'person-remove' },
+  { k: 'lodgingCancel', q: 'Our stay gets cancelled', hint: 'See what it costs to rebook', icon: 'bed' },
+  { k: 'rain', q: 'It rains', hint: 'See which outdoor plans are at risk', icon: 'rainy' },
+  { k: 'budgetCut', q: 'Our budget shrinks', hint: 'See what you could cut', icon: 'trending-down' },
 ];
+
 const SEV: Record<Severity, { c: string; bg: string; label: string }> = {
-  high: { c: C.high, bg: C.highSoft, label: 'Critical' },
-  medium: { c: C.med, bg: C.medSoft, label: 'Watch' },
+  high: { c: C.high, bg: C.highSoft, label: 'Serious' },
+  medium: { c: C.med, bg: C.medSoft, label: 'Heads up' },
   low: { c: C.low, bg: C.lowSoft, label: 'Minor' },
 };
+
+/** Pick the most useful default for each what-if so people rarely have to choose anything. */
+function defaults(t: Trip) {
+  const legs = [...t.items].filter((i) => i.kind === 'flight' || i.kind === 'transport').sort((a, b) => (a.kind === b.kind ? absStart(a) - absStart(b) : a.kind === 'flight' ? -1 : 1));
+  let rainDay = 0;
+  let most = -1;
+  for (let d = 0; d < t.days; d++) {
+    const n = t.items.filter((i) => i.day === d && i.outdoor).length;
+    if (n > most) [most, rainDay] = [n, d];
+  }
+  return { legs, lodgings: t.items.filter((i) => i.kind === 'lodging'), rainDay };
+}
+
+function summary(r: SimResult) {
+  const serious = r.impacts.filter((i) => i.severity === 'high').length;
+  const parts = [
+    serious ? `${serious} serious problem${serious === 1 ? '' : 's'}` : 'no serious problems',
+    r.lostMoney ? `${money(r.lostMoney)} at risk` : 'no money lost',
+  ];
+  const fixes = r.fixes.length ? `TripTwin found ${r.fixes.length} fix${r.fixes.length === 1 ? '' : 'es'}.` : 'Your plan already handles this.';
+  return `This would cause ${parts.join(' and ')}. ${fixes}`;
+}
 
 export default function Twin() {
   const id = useTripId();
@@ -29,60 +54,66 @@ export default function Twin() {
   const { t, update, state, me, user, post } = useTrip(id);
   const isLive = live === '1' || t?.phase === 'active';
 
-  const [kind, setKind] = useState<Kind>('flightDelay');
-  const [flightId, setFlightId] = useState<string>();
+  const [setup, setSetup] = useState<Kind | null>(null);
+  const [legId, setLegId] = useState<string>();
   const [hours, setHours] = useState(6);
   const [dropIds, setDropIds] = useState<string[]>([]);
   const [lodgingId, setLodgingId] = useState<string>();
-  const [rainDay, setRainDay] = useState(0);
+  const [rainDay, setRainDay] = useState<number>();
   const [cut, setCut] = useState(20);
-  const [stack, setStack] = useState<Scenario[]>([]);
+  const [base, setBase] = useState<Scenario[]>([]); // what-ifs this one is combined with
   const [result, setResult] = useState<SimResult | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [ranking, setRanking] = useState<ReturnType<typeof stressTest> | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [done, setDone] = useState('');
-
-  const flights = useMemo(() => t?.items.filter((i) => i.kind === 'flight' || i.kind === 'transport') ?? [], [t]);
-  const lodgings = useMemo(() => t?.items.filter((i) => i.kind === 'lodging') ?? [], [t]);
   if (!t) return null;
 
-  const draft = (): Scenario | null => {
-    switch (kind) {
+  const d = defaults(t);
+  const draft = (k: Kind): Scenario | null => {
+    switch (k) {
       case 'flightDelay': {
-        const f = flightId ?? flights[0]?.id;
-        return f ? { kind, itemId: f, hours } : null;
+        const leg = legId ?? d.legs[0]?.id;
+        return leg ? { kind: k, itemId: leg, hours } : null;
       }
       case 'dropout':
-        return dropIds.length ? { kind, userIds: dropIds } : null;
+        return dropIds.length ? { kind: k, userIds: dropIds } : null;
       case 'lodgingCancel': {
-        const l = lodgingId ?? lodgings[0]?.id;
-        return l ? { kind, itemId: l } : null;
+        const l = lodgingId ?? d.lodgings[0]?.id;
+        return l ? { kind: k, itemId: l } : null;
       }
       case 'rain':
-        return { kind, day: rainDay };
+        return { kind: k, day: rainDay ?? d.rainDay };
       case 'budgetCut':
-        return { kind, percent: cut };
+        return { kind: k, percent: cut };
     }
   };
 
   const run = (scenarios: Scenario[]) => {
-    if (!scenarios.length) return;
     const r = simulate(t, scenarios, state.users);
     setResult(r);
     setChosen(new Set(r.fixes.map((f) => f.id)));
+    setShowAll(false);
+    setSetup(null);
     setDone('');
   };
 
-  const current = draft();
+  const reset = () => {
+    setResult(null);
+    setSetup(null);
+    setBase([]);
+  };
+
   const fixes = result?.fixes.filter((f) => chosen.has(f.id)) ?? [];
   const title = result ? result.scenarios.map((s) => describeScenario(s, t, state.users)).join(' + ') : '';
 
   const savePlaybook = () => {
     if (!result) return;
-    const steps = fixes.length ? fixes.map((f) => f.label) : ['No fixes needed — the plan absorbs this.'];
+    const steps = fixes.length ? fixes.map((f) => f.label) : ['No changes needed. The plan absorbs this.'];
     update((x) => ({ ...x, playbooks: [{ id: uid(), title: `If ${title}`, authorId: me.id, steps, createdAt: Date.now() }, ...x.playbooks] }));
-    post(t.id, `📘 ${me.name} saved a Plan B — "If ${title}": ${steps.join('; ')}`, true);
-    setDone('Saved to the group playbook and shared in chat.');
+    post(t.id, `📘 ${me.name} saved a Plan B: "If ${title}": ${steps.join('; ')}`, true);
+    setDone('Plan B saved and shared with the group.');
+    reset();
   };
 
   const applyReal = () => {
@@ -90,24 +121,197 @@ export default function Twin() {
     const next = applyChanges(result.twin, fixes.flatMap((f) => f.changes));
     update((x) => ({ ...x, items: next.items, memberIds: next.memberIds, budget: next.budget, tasks: next.tasks }));
     post(t.id, `⚠️ ${me.name} reported: ${title}. TripTwin updated the plan with ${fixes.length} fix(es).`, true);
-    setDone('The real trip has been updated and the group notified.');
-    setResult(null);
-    setStack([]);
+    setDone("Trip updated. Everyone's plan now reflects the change.");
+    reset();
   };
 
+  // ───────────── Step 2: one focused question for the chosen what-if ─────────────
+  if (setup) {
+    const w = WHAT_IFS.find((x) => x.k === setup)!;
+    const scenario = draft(setup);
+    const radio = (on: boolean, label: string, sub: string | undefined, icon: IconName, onPress: () => void, key: string) => (
+      <Pressable key={key} onPress={onPress} style={[styles.row, { gap: S.md, paddingVertical: 8 }]}>
+        <Icon name={on ? 'radio-button-on' : 'radio-button-off'} color={on ? C.twin : C.faint} size={22} />
+        <Icon name={icon} size={16} color={C.sub} />
+        <View style={{ flex: 1 }}>
+          <Body size={15} bold={on}>{label}</Body>
+          {sub && <Sub>{sub}</Sub>}
+        </View>
+      </Pressable>
+    );
+    return (
+      <Screen>
+        <Pressable onPress={() => setSetup(null)} style={[styles.row, { gap: 4 }]}>
+          <Icon name="chevron-back" color={C.twin} />
+          <Body color={C.twin} bold>All what-ifs</Body>
+        </Pressable>
+        <Card>
+          <Row gap={S.md}>
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: C.twinSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={w.icon} size={22} color={C.twin} />
+            </View>
+            <Body bold size={20}>What if {w.q.toLowerCase()}?</Body>
+          </Row>
+
+          {setup === 'flightDelay' &&
+            (d.legs.length ? (
+              <>
+                <Sub>Which one?</Sub>
+                {d.legs.map((l) => radio((legId ?? d.legs[0].id) === l.id, l.title, dayLabel(t, l.day), KIND_ICON[l.kind] as IconName, () => setLegId(l.id), l.id))}
+                <Sub>How late?</Sub>
+                <Segmented options={[2, 4, 6, 12].map((h) => ({ value: h, label: `${h} hrs` }))} value={hours} onChange={setHours} color={C.twin} />
+              </>
+            ) : (
+              <Sub>Add a flight or ride to your plan first.</Sub>
+            ))}
+
+          {setup === 'dropout' && (
+            <>
+              <Sub>Tap who can't make it.</Sub>
+              <PeoplePicker ids={t.memberIds} selected={dropIds} onChange={setDropIds} userOf={user} allowEveryone={false} />
+            </>
+          )}
+
+          {setup === 'lodgingCancel' &&
+            (d.lodgings.length > 1 ? (
+              <>
+                <Sub>Which stay?</Sub>
+                {d.lodgings.map((l) => radio((lodgingId ?? d.lodgings[0].id) === l.id, l.title, `${l.nights ?? 1} nights`, 'bed', () => setLodgingId(l.id), l.id))}
+              </>
+            ) : d.lodgings.length ? (
+              <Sub>We'll cancel {d.lodgings[0].title} and see what happens.</Sub>
+            ) : (
+              <Sub>Add where you're staying to your plan first.</Sub>
+            ))}
+
+          {setup === 'rain' && (
+            <>
+              <Sub>Which day? We picked the one with the most outdoor plans.</Sub>
+              {Array.from({ length: t.days }, (_, day) => {
+                const outdoor = t.items.filter((i) => i.day === day && i.outdoor).length;
+                return radio((rainDay ?? d.rainDay) === day, `Day ${day + 1} · ${dayLabel(t, day)}`, outdoor ? `${outdoor} outdoor plan${outdoor > 1 ? 's' : ''}` : 'Nothing outdoors', 'rainy-outline', () => setRainDay(day), String(day));
+              })}
+            </>
+          )}
+
+          {setup === 'budgetCut' && (
+            <>
+              <Sub>By how much?</Sub>
+              <Segmented options={[10, 20, 30].map((p) => ({ value: p, label: `${p}% less` }))} value={cut} onChange={setCut} color={C.twin} />
+              <Sub>New budget would be {money(t.budget * (1 - cut / 100))} (now {money(t.budget)}).</Sub>
+            </>
+          )}
+
+          {base.length > 0 && <Sub>Combined with: {base.map((s) => describeScenario(s, t, state.users)).join(', ')}</Sub>}
+          <Button title="See what happens" icon="play" kind="twin" disabled={!scenario} onPress={() => scenario && run([...base, scenario])} />
+        </Card>
+      </Screen>
+    );
+  }
+
+  // ───────────── Step 3: results ─────────────
+  if (result) {
+    const visible = showAll ? result.impacts : result.impacts.slice(0, 3);
+    const overBudget = result.costAfter > result.budgetAfter;
+    return (
+      <Screen>
+        <Pressable onPress={reset} style={[styles.row, { gap: 4 }]}>
+          <Icon name="chevron-back" color={C.twin} />
+          <Body color={C.twin} bold>Try a different what-if</Body>
+        </Pressable>
+
+        <Card>
+          <Sub>IF {title.toUpperCase()}</Sub>
+          <Body bold size={18}>{summary(result)}</Body>
+          <Row style={{ justifyContent: 'space-around', marginVertical: S.sm }}>
+            <View style={{ alignItems: 'center', gap: 4 }}><ScoreBadge score={result.scoreBefore} size={60} /><Sub>Today</Sub></View>
+            <Icon name="arrow-forward" color={C.faint} />
+            <View style={{ alignItems: 'center', gap: 4 }}><ScoreBadge score={result.scoreAfter} size={60} /><Sub>If it happens</Sub></View>
+            <Icon name="arrow-forward" color={C.faint} />
+            <View style={{ alignItems: 'center', gap: 4 }}><ScoreBadge score={result.scoreWithFixes} size={60} /><Sub>With fixes</Sub></View>
+          </Row>
+          <Row>
+            <Stat label="at risk" value={money(result.lostMoney)} color={result.lostMoney ? C.high : C.low} />
+            <Stat label={Math.abs(result.perPersonAfter - result.perPersonBefore) > 1 ? `each (was ${money(result.perPersonBefore)})` : 'per person'} value={money(result.perPersonAfter)} color={result.perPersonAfter > result.perPersonBefore + 1 ? C.high : C.text} />
+            <Stat label={overBudget ? 'over budget' : 'under budget'} value={money(Math.abs(result.budgetAfter - result.costAfter))} color={overBudget ? C.high : C.low} />
+          </Row>
+        </Card>
+
+        <Card>
+          <H2>What goes wrong</H2>
+          {visible.map((im, i) => (
+            <View key={i} style={{ flexDirection: 'row', gap: S.sm, paddingVertical: 6, borderTopWidth: i ? 1 : 0, borderTopColor: C.line }}>
+              <View style={{ width: 4, borderRadius: 2, backgroundColor: SEV[im.severity].c }} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Body bold size={15}>{im.title}</Body>
+                <Sub>{im.detail}</Sub>
+              </View>
+              <Tag label={SEV[im.severity].label} color={SEV[im.severity].c} bg={SEV[im.severity].bg} />
+            </View>
+          ))}
+          {result.impacts.length > 3 && <Sub onPress={() => setShowAll(!showAll)}>{showAll ? 'Show less' : `Show all ${result.impacts.length}`}</Sub>}
+        </Card>
+
+        <Card>
+          <H2>How to handle it</H2>
+          {result.fixes.length === 0 ? (
+            <Sub>Nothing to change. Your plan already absorbs this.</Sub>
+          ) : (
+            <Sub>We've ticked every fix. Untick any you don't want.</Sub>
+          )}
+          {result.fixes.map((f) => {
+            const on = chosen.has(f.id);
+            return (
+              <Pressable
+                key={f.id}
+                onPress={() => setChosen((c) => { const n = new Set(c); if (on) n.delete(f.id); else n.add(f.id); return n; })}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on }}>
+                <Row style={{ alignItems: 'flex-start', paddingVertical: 6 }}>
+                  <Icon name={on ? 'checkbox' : 'square-outline'} color={C.twin} size={22} />
+                  <View style={{ flex: 1 }}>
+                    <Body bold size={15}>{f.label}</Body>
+                    <Sub>{f.detail}</Sub>
+                  </View>
+                  {f.costDelta !== 0 && <Body bold size={13} color={f.costDelta < 0 ? C.low : C.high}>{f.costDelta > 0 ? '+' : ''}{money(f.costDelta)}</Body>}
+                </Row>
+              </Pressable>
+            );
+          })}
+        </Card>
+
+        {isLive ? (
+          <>
+            <Button title="Update our trip with these fixes" icon="checkmark-done" onPress={applyReal} />
+            <Button title="Just save it as a Plan B" icon="book" kind="ghost" onPress={savePlaybook} />
+          </>
+        ) : (
+          <>
+            <Button title="Save as our Plan B" icon="book" kind="twin" onPress={savePlaybook} />
+            <Sub>Saves these steps to the group playbook and shares them in chat. Your real plan stays the same.</Sub>
+            <Button title="It actually happened: update the trip" icon="alert-circle" kind="ghost" onPress={applyReal} />
+          </>
+        )}
+        <Sub onPress={() => { setBase(result.scenarios); setResult(null); }}>+ Add another what-if on top of this one</Sub>
+      </Screen>
+    );
+  }
+
+  // ───────────── Step 1: pick a what-if ─────────────
   return (
     <Screen>
-      <Card style={{ backgroundColor: isLive ? C.highSoft : C.twinSoft }}>
-        <Row>
-          <Icon name={isLive ? 'pulse' : 'git-compare'} color={isLive ? C.high : C.twin} />
-          <Body bold color={isLive ? C.high : C.twin}>{isLive ? 'Live mode' : 'Digital twin'}</Body>
-        </Row>
-        <Sub>
-          {isLive
-            ? "Tell TripTwin what actually happened. It shows the ripple effects and updates everyone's plan in one tap."
-            : 'This is a copy of your trip. Break it on purpose — nothing changes for real until you choose.'}
-        </Sub>
-      </Card>
+      {isLive ? (
+        <Card style={{ backgroundColor: C.highSoft }}>
+          <Row><Icon name="pulse" color={C.high} /><Body bold color={C.high}>Something go wrong?</Body></Row>
+          <Sub>Pick what happened. TripTwin shows the knock-on effects and updates everyone's plan in one tap.</Sub>
+        </Card>
+      ) : (
+        <Card style={{ backgroundColor: C.twinSoft }}>
+          <Body bold size={18} color={C.text}>How would your trip handle a bad day?</Body>
+          <Sub>Try things going wrong here. Nothing changes for real unless you say so.</Sub>
+          <Button title="Check for everything at once" icon="flash" kind="twin" onPress={() => setRanking(stressTest(t, state.users))} />
+        </Card>
+      )}
 
       {!!done && (
         <Card style={{ backgroundColor: C.lowSoft }}>
@@ -115,163 +319,43 @@ export default function Twin() {
         </Card>
       )}
 
-      {/* One-tap stress test */}
-      <Card>
-        <H2>Stress test</H2>
-        <Sub>Runs the five classic disruptions one by one and ranks what would hurt your trip most.</Sub>
-        <Button title="Run full stress test" icon="flash" kind="twin" onPress={() => setRanking(stressTest(t, state.users))} />
-        {ranking?.map((r, i) => (
-          <Pressable key={i} onPress={() => { setStack([r.scenario]); run([r.scenario]); }}>
-            <Row style={{ paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.line }}>
-              <Body bold color={C.sub}>{i + 1}</Body>
-              <View style={{ flex: 1 }}>
-                <Body size={14} bold>{r.label}</Body>
-                <Sub>{r.high} critical · {money(r.result.lostMoney)} at risk · score {r.result.scoreBefore} → {r.result.scoreAfter}</Sub>
-              </View>
-              <Tag label={i === 0 ? 'Biggest risk' : r.high ? 'Risky' : 'OK'} color={i === 0 || r.high ? C.high : C.low} bg={i === 0 || r.high ? C.highSoft : C.lowSoft} />
-            </Row>
-          </Pressable>
-        ))}
-      </Card>
-
-      {/* Scenario builder */}
-      <Card>
-        <H2>What if…</H2>
-        <Row style={{ flexWrap: 'wrap' }}>
-          {TYPES.map((x) => <Chip key={x.k} label={x.label} icon={x.icon} color={C.twin} active={kind === x.k} onPress={() => setKind(x.k)} />)}
-        </Row>
-
-        {kind === 'flightDelay' && (
-          <View style={{ gap: S.sm }}>
-            <Sub>Which leg?</Sub>
-            <Row style={{ flexWrap: 'wrap' }}>
-              {flights.map((f) => <Chip key={f.id} label={f.title} active={(flightId ?? flights[0]?.id) === f.id} onPress={() => setFlightId(f.id)} />)}
-            </Row>
-            {!flights.length && <Sub>Add a flight or transport leg in the Plan tab first.</Sub>}
-            <Sub>Delayed by</Sub>
-            <Row>{[2, 4, 6, 12].map((h) => <Chip key={h} label={`${h} hours`} active={hours === h} onPress={() => setHours(h)} />)}</Row>
-          </View>
-        )}
-        {kind === 'dropout' && (
-          <View style={{ gap: S.sm }}>
-            <Sub>Who can't make it?</Sub>
-            <Row style={{ flexWrap: 'wrap' }} gap={S.md}>
-              {t.memberIds.map((m) => (
-                <Pressable key={m} onPress={() => setDropIds((d) => (d.includes(m) ? d.filter((x) => x !== m) : [...d, m]))} style={{ alignItems: 'center', opacity: dropIds.includes(m) ? 1 : 0.35 }}>
-                  <Avatar user={user(m)} size={38} />
-                  <Sub>{user(m)?.name}</Sub>
-                </Pressable>
-              ))}
-            </Row>
-          </View>
-        )}
-        {kind === 'lodgingCancel' && (
-          <Row style={{ flexWrap: 'wrap' }}>
-            {lodgings.map((l) => <Chip key={l.id} label={l.title} active={(lodgingId ?? lodgings[0]?.id) === l.id} onPress={() => setLodgingId(l.id)} />)}
-            {!lodgings.length && <Sub>No lodging in the plan yet.</Sub>}
-          </Row>
-        )}
-        {kind === 'rain' && (
-          <Row style={{ flexWrap: 'wrap' }}>
-            {Array.from({ length: t.days }, (_, d) => <Chip key={d} label={`Day ${d + 1}`} active={rainDay === d} onPress={() => setRainDay(d)} />)}
-          </Row>
-        )}
-        {kind === 'budgetCut' && (
-          <Row>{[10, 20, 30].map((p) => <Chip key={p} label={`−${p}%`} active={cut === p} onPress={() => setCut(p)} />)}</Row>
-        )}
-
-        <Row gap={S.sm}>
-          <View style={{ flex: 1 }}>
-            <Button title="Simulate" icon="play" kind="twin" disabled={!current} onPress={() => current && run([...stack, current])} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button title="Stack it" icon="layers" kind="ghost" disabled={!current} onPress={() => current && setStack((s) => [...s, current])} />
-          </View>
-        </Row>
-        {stack.length > 0 && (
-          <View style={{ gap: 4 }}>
-            <Sub>Combined scenario (runs together with the one above):</Sub>
-            {stack.map((s, i) => (
-              <Row key={i}>
-                <Icon name="layers-outline" size={14} color={C.twin} />
-                <Body size={14}>{describeScenario(s, t, state.users)}</Body>
-                <Pressable onPress={() => setStack((x) => x.filter((_, j) => j !== i))}><Icon name="close-circle" size={16} color={C.faint} /></Pressable>
-              </Row>
-            ))}
-          </View>
-        )}
-      </Card>
-
-      {/* Results */}
-      {result && (
-        <>
-          <Card>
-            <Sub>SIMULATION</Sub>
-            <Body bold size={18}>{title}</Body>
-            <Row style={{ justifyContent: 'space-around', marginVertical: S.sm }}>
-              <View style={{ alignItems: 'center', gap: 4 }}><ScoreBadge score={result.scoreBefore} size={64} /><Sub>Now</Sub></View>
-              <Icon name="arrow-forward" color={C.faint} />
-              <View style={{ alignItems: 'center', gap: 4 }}><ScoreBadge score={result.scoreAfter} size={64} /><Sub>After hit</Sub></View>
-              <Icon name="arrow-forward" color={C.faint} />
-              <View style={{ alignItems: 'center', gap: 4 }}><ScoreBadge score={result.scoreWithFixes} size={64} /><Sub>With fixes</Sub></View>
-            </Row>
-            <Row>
-              <Stat label="money at risk" value={money(result.lostMoney)} color={result.lostMoney ? C.high : C.low} />
-              <Stat label="per person" value={`${money(result.perPersonAfter)}`} color={result.perPersonAfter > result.perPersonBefore + 1 ? C.high : C.text} />
-              <Stat label={result.costAfter > result.budgetAfter ? 'over budget' : 'under budget'} value={money(Math.abs(result.budgetAfter - result.costAfter))} color={result.costAfter > result.budgetAfter ? C.high : C.low} />
-            </Row>
-            <Sub>Per person was {money(result.perPersonBefore)} before this scenario.</Sub>
-          </Card>
-
-          <Card>
-            <H2>Ripple effects ({result.impacts.length})</H2>
-            {result.impacts.map((im, i) => (
-              <View key={i} style={{ flexDirection: 'row', gap: S.sm, paddingVertical: 6, borderTopWidth: i ? 1 : 0, borderTopColor: C.line }}>
-                <View style={{ width: 4, borderRadius: 2, backgroundColor: SEV[im.severity].c }} />
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Row><Tag label={SEV[im.severity].label} color={SEV[im.severity].c} bg={SEV[im.severity].bg} /></Row>
-                  <Body bold size={14}>{im.title}</Body>
-                  <Sub>{im.detail}</Sub>
+      {ranking && (
+        <Card>
+          <H2>Your biggest risks</H2>
+          <Sub>Tap one to see the details and fixes.</Sub>
+          {ranking.map((r, i) => {
+            const bad = i === 0 || r.high > 0;
+            return (
+              <Pressable key={i} onPress={() => run([r.scenario])} style={[styles.row, { gap: S.md, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line }]}>
+                <Icon name={bad ? 'warning' : 'checkmark-circle'} color={bad ? C.high : C.low} size={20} />
+                <View style={{ flex: 1 }}>
+                  <Body bold size={15}>{r.label}</Body>
+                  <Sub>{r.high ? `${r.high} serious problem${r.high > 1 ? 's' : ''}` : 'Handled well'}{r.result.lostMoney ? ` · ${money(r.result.lostMoney)} at risk` : ''}</Sub>
                 </View>
-              </View>
-            ))}
-          </Card>
-
-          <Card>
-            <H2>Suggested Plan B ({result.fixes.length})</H2>
-            {result.fixes.length === 0 && <Sub>No changes needed. Your plan absorbs this one.</Sub>}
-            {result.fixes.map((f) => {
-              const on = chosen.has(f.id);
-              return (
-                <Pressable key={f.id} onPress={() => setChosen((c) => { const n = new Set(c); if (on) n.delete(f.id); else n.add(f.id); return n; })}>
-                  <Row style={{ alignItems: 'flex-start', paddingVertical: 6 }}>
-                    <Icon name={on ? 'checkbox' : 'square-outline'} color={C.twin} size={20} />
-                    <View style={{ flex: 1 }}>
-                      <Body bold size={14}>{f.label}</Body>
-                      <Sub>{f.detail}</Sub>
-                    </View>
-                    {f.costDelta !== 0 && <Body bold size={13} color={f.costDelta < 0 ? C.low : C.high}>{f.costDelta > 0 ? '+' : ''}{money(f.costDelta)}</Body>}
-                  </Row>
-                </Pressable>
-              );
-            })}
-            <Button title="Save as group Plan B" icon="book" kind="twin" onPress={savePlaybook} />
-            <Button title={isLive ? 'Apply to the real trip now' : 'This really happened — apply it'} icon="checkmark-done" kind={isLive ? 'primary' : 'ghost'} onPress={applyReal} />
-          </Card>
-        </>
+                <Icon name="chevron-forward" color={C.faint} />
+              </Pressable>
+            );
+          })}
+        </Card>
       )}
 
-      <Card>
-        <H2>Group playbook ({t.playbooks.length})</H2>
-        {t.playbooks.length === 0 && <Sub>Saved Plan Bs appear here so everyone knows what to do if something goes wrong.</Sub>}
-        {t.playbooks.map((p) => (
-          <View key={p.id} style={{ gap: 2, paddingVertical: 6, borderTopWidth: 1, borderTopColor: C.line }}>
-            <Body bold size={14}>{p.title}</Body>
-            {p.steps.map((s, i) => <Sub key={i}>• {s}</Sub>)}
-            <Sub>by {user(p.authorId)?.name}</Sub>
-          </View>
-        ))}
-      </Card>
+      <H2>{isLive ? 'What happened?' : 'Or try one what-if'}</H2>
+      {WHAT_IFS.map((w) => (
+        <OptionCard key={w.k} icon={w.icon} title={isLive ? w.q : `What if ${w.q.toLowerCase()}?`} subtitle={w.hint} color={C.twin} bg={C.twinSoft} onPress={() => setSetup(w.k)} />
+      ))}
+
+      {t.playbooks.length > 0 && (
+        <Card>
+          <H2>Our Plan Bs</H2>
+          {t.playbooks.map((p) => (
+            <View key={p.id} style={{ gap: 2, paddingVertical: 6, borderTopWidth: 1, borderTopColor: C.line }}>
+              <Body bold size={14}>{p.title}</Body>
+              {p.steps.map((s, i) => <Sub key={i}>• {s}</Sub>)}
+              <Sub>Saved by {user(p.authorId)?.name}</Sub>
+            </View>
+          ))}
+        </Card>
+      )}
     </Screen>
   );
 }

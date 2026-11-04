@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import type { ComponentProps, ReactNode } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 
 import { C, R, S, scoreColor } from '@/constants/theme';
@@ -163,7 +163,120 @@ export const Row = ({ children, gap = S.sm, style }: { children: ReactNode; gap?
   <View style={[styles.row, { gap }, style]}>{children}</View>
 );
 
+/** iOS-style segmented control for 2–5 fixed choices. */
+export function Segmented<T extends string | number>({ options, value, onChange, color = C.primary }: { options: { value: T; label: string; icon?: IconName }[]; value: T; onChange: (v: T) => void; color?: string }) {
+  return (
+    <View style={styles.segment}>
+      {options.map((o) => {
+        const on = o.value === value;
+        const stacked = !!o.icon && options.length > 3;
+        return (
+          <Pressable key={String(o.value)} onPress={() => onChange(o.value)} accessibilityRole="button" accessibilityState={{ selected: on }} style={[styles.segmentItem, stacked && { flexDirection: 'column', gap: 2 }, on && { backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 }]}>
+            {o.icon && <Icon name={o.icon} size={stacked ? 20 : 15} color={on ? color : C.sub} />}
+            <Text numberOfLines={1} style={{ color: on ? color : C.sub, fontWeight: on ? '700' : '600', fontSize: stacked ? 12 : 13 }}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** − value + control for numbers, so people never type digits into a box. */
+export function Stepper({ label, value, onChange, step = 1, min = 0, max = 99999, format = String }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number; format?: (v: number) => string }) {
+  const btn = (icon: IconName, next: number, disabled: boolean, a11y: string) => (
+    <Pressable disabled={disabled} onPress={() => onChange(next)} accessibilityLabel={a11y} style={({ pressed }) => [styles.stepBtn, { opacity: disabled ? 0.3 : pressed ? 0.6 : 1 }]}>
+      <Icon name={icon} size={18} color={C.primary} />
+    </Pressable>
+  );
+  return (
+    <View style={[styles.row, { paddingVertical: 4 }]}>
+      <Text style={[styles.label, { flex: 1, fontSize: 15, color: C.text, fontWeight: '500' }]}>{label}</Text>
+      {btn('remove', Math.max(min, value - step), value <= min, `Decrease ${label}`)}
+      <Text style={{ minWidth: 76, textAlign: 'center', fontSize: 16, fontWeight: '700', color: C.text }}>{format(value)}</Text>
+      {btn('add', Math.min(max, value + step), value >= max, `Increase ${label}`)}
+    </View>
+  );
+}
+
+/** A plain-language yes/no question. */
+export function YesNo({ question, hint, value, onChange }: { question: string; hint?: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <View style={{ gap: 6, paddingVertical: 4 }}>
+      <Text style={{ fontSize: 15, color: C.text, fontWeight: '500' }}>{question}</Text>
+      {hint && <Text style={styles.sub}>{hint}</Text>}
+      <Segmented options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} value={value ? 'yes' : 'no'} onChange={(v) => onChange(v === 'yes')} color={C.twin} />
+    </View>
+  );
+}
+
+/** Section that starts closed so optional detail doesn't crowd the screen. */
+export function Expandable({ title, subtitle, icon, children, initiallyOpen = false }: { title: string; subtitle?: string; icon?: IconName; children: ReactNode; initiallyOpen?: boolean }) {
+  const [open, setOpen] = useState(initiallyOpen);
+  return (
+    <View style={styles.card}>
+      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[styles.row, { gap: S.md }]}>
+        {icon && (
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: C.twinSoft, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name={icon} color={C.twin} />
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: C.text }}>{title}</Text>
+          {subtitle && <Text style={styles.sub}>{subtitle}</Text>}
+        </View>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} color={C.sub} />
+      </Pressable>
+      {open && <View style={{ gap: S.sm, marginTop: S.sm }}>{children}</View>}
+    </View>
+  );
+}
+
+/** Large tappable card with an icon — used for choices that deserve explanation. */
+export function OptionCard({ icon, title, subtitle, onPress, color = C.primary, bg = C.primarySoft, selected }: { icon: IconName; title: string; subtitle?: string; onPress: () => void; color?: string; bg?: string; selected?: boolean }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.card, styles.row, { gap: S.md, opacity: pressed ? 0.75 : 1, borderWidth: 2, borderColor: selected ? color : 'transparent' }]}>
+      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={22} color={color} />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: C.text }}>{title}</Text>
+        {subtitle && <Text style={styles.sub}>{subtitle}</Text>}
+      </View>
+      <Icon name="chevron-forward" color={C.faint} />
+    </Pressable>
+  );
+}
+
+/** Tap-to-pick list of people, with an "Everyone" shortcut. */
+export function PeoplePicker({ ids, selected, onChange, userOf, allowEveryone = true }: { ids: string[]; selected: string[]; onChange: (ids: string[]) => void; userOf: (id: string) => User | undefined; allowEveryone?: boolean }) {
+  const all = selected.length === ids.length;
+  return (
+    <View style={{ gap: S.sm }}>
+      {allowEveryone && (
+        <Segmented options={[{ value: 'all', label: 'Everyone' }, { value: 'some', label: 'Just some people' }]} value={all ? 'all' : 'some'} onChange={(v) => onChange(v === 'all' ? ids : ids.slice(0, 1))} />
+      )}
+      {(!allowEveryone || !all) && (
+        <View style={[styles.row, { flexWrap: 'wrap', gap: S.md }]}>
+          {ids.map((m) => {
+            const on = selected.includes(m);
+            return (
+              <Pressable key={m} onPress={() => onChange(on ? selected.filter((x) => x !== m) : [...selected, m])} accessibilityRole="checkbox" accessibilityState={{ checked: on }} style={{ alignItems: 'center', gap: 2, opacity: on ? 1 : 0.35 }}>
+                <Avatar user={userOf(m)} size={40} />
+                <Text style={styles.sub}>{userOf(m)?.name}</Text>
+                <Icon name={on ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={on ? C.primary : C.faint} />
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
 export const styles = StyleSheet.create({
+  segment: { flexDirection: 'row', backgroundColor: C.line, borderRadius: R.md, padding: 3, gap: 3 },
+  segmentItem: { flex: 1, flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, paddingHorizontal: 6, borderRadius: R.md - 3 },
+  stepBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
   card: { backgroundColor: C.card, borderRadius: R.lg, padding: S.lg, gap: S.sm, shadowColor: '#1B1F3B', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
   h1: { fontSize: 28, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
   h2: { fontSize: 18, fontWeight: '800', color: C.text },
