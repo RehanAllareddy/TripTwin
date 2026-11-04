@@ -20,6 +20,9 @@ interface Store {
   joinTrip: (code: string) => ID | null;
   switchUser: (id: ID) => void;
   addUser: (name: string) => ID;
+  /** Create or refresh a signed-in account's profile and make it the current user. */
+  signInAs: (u: Pick<User, 'id' | 'name' | 'email' | 'photoURL'>) => void;
+  updateUser: (id: ID, patch: Partial<Omit<User, 'id'>>) => void;
   /** Post a message into a trip's group chat as the current user (or the system). */
   post: (tripId: ID, text: string, asSystem?: boolean) => void;
   resetDemo: () => void;
@@ -59,6 +62,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
     }));
   }, []);
+
+  const signInAs = useCallback(
+    (u: Pick<User, 'id' | 'name' | 'email' | 'photoURL'>) =>
+      setState((s) => {
+        const existing = s.users.find((x) => x.id === u.id);
+        const users = existing
+          ? s.users.map((x) => (x.id === u.id ? { ...x, email: u.email, photoURL: u.photoURL ?? x.photoURL, name: x.name || u.name } : x))
+          : [...s.users, { ...u, color: COLORS[s.users.length % COLORS.length] }];
+        return { ...s, users, currentUserId: u.id };
+      }),
+    [],
+  );
 
   const store = useMemo<Store>(() => {
     const me = state.users.find((u) => u.id === state.currentUserId) ?? state.users[0];
@@ -106,11 +121,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState((s) => ({ ...s, users: [...s.users, { id, name, color: COLORS[s.users.length % COLORS.length] }], currentUserId: id }));
         return id;
       },
+      signInAs,
+      updateUser: (id, patch) => setState((s) => ({ ...s, users: s.users.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
       post: (tripId, text, asSystem) =>
         updateTrip(tripId, (t) => ({ ...t, messages: [...t.messages, { id: uid(), authorId: asSystem ? 'system' : me.id, text, createdAt: Date.now() }] })),
-      resetDemo: () => setState(seedState()),
+      resetDemo: () =>
+        setState((s) => {
+          // Keep real accounts when restoring the sample trip.
+          const fresh = seedState();
+          const accounts = s.users.filter((u) => !fresh.users.some((f) => f.id === u.id) && u.email);
+          const current = accounts.find((u) => u.id === s.currentUserId);
+          return { ...fresh, users: [...fresh.users, ...accounts], currentUserId: current?.id ?? fresh.currentUserId };
+        }),
     };
-  }, [state, ready, updateTrip]);
+  }, [state, ready, updateTrip, signInAs]);
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }

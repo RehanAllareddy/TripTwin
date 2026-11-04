@@ -4,6 +4,8 @@ export interface User {
   id: ID;
   name: string;
   color: string;
+  email?: string;
+  photoURL?: string;
 }
 
 export type ItemKind = 'flight' | 'transport' | 'lodging' | 'activity' | 'food';

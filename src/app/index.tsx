@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Alert, Platform, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, AvatarStack, Body, Button, Card, Empty, H2, Icon, Row, ScoreBadge, Screen, Sub, Tag } from '@/components/ui';
@@ -15,29 +15,25 @@ const PHASE = {
 };
 
 export default function Home() {
-  const { state, me, user, resetDemo } = useStore();
+  const { state, me, user, joinTrip } = useStore();
   const insets = useSafeAreaInsets();
   const mine = state.trips.filter((t) => t.memberIds.includes(me.id));
-
-  const confirmReset = () => {
-    if (Platform.OS === 'web') return resetDemo();
-    Alert.alert('Reset demo data?', 'Restores the sample Lisbon trip.', [{ text: 'Cancel' }, { text: 'Reset', style: 'destructive', onPress: resetDemo }]);
-  };
 
   return (
     <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: C.bg }}>
       <Screen>
-        <Row>
+        <Row gap={S.md}>
+          <Pressable onPress={() => router.push('/profile')} accessibilityRole="button" accessibilityLabel="Profile and settings" hitSlop={8}>
+            <Avatar user={me} size={44} />
+          </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 30, fontWeight: '900', color: C.text, letterSpacing: -0.8 }}>
+            <Sub>Hi, {me.name.split(' ')[0]} 👋</Sub>
+            <Text style={{ fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.8 }}>
               Trip<Text style={{ color: C.twin }}>Twin</Text>
             </Text>
-            <Sub>Don't just plan your trip. Test it before you take it.</Sub>
           </View>
-          <Pressable onPress={() => router.push('/profile')} accessibilityLabel="Switch traveler">
-            <Avatar user={me} size={42} />
-          </Pressable>
         </Row>
+        <Sub>Don't just plan your trip. Test it before you take it.</Sub>
 
         <Row>
           <View style={{ flex: 1 }}>
@@ -49,7 +45,12 @@ export default function Home() {
         </Row>
 
         <H2>Your trips</H2>
-        {mine.length === 0 && <Empty icon="airplane-outline" text="No trips yet. Create one or join your group's trip with a code." />}
+        {mine.length === 0 && (
+          <Card style={{ alignItems: 'center' }}>
+            <Empty icon="airplane-outline" text="No trips yet. Create one, or join your group's trip with their code." />
+            <Button title="Explore the sample Lisbon trip" icon="compass" kind="twin" onPress={() => { const id = joinTrip('LIS27X'); if (id) router.push(`/trip/${id}`); }} />
+          </Card>
+        )}
         {mine.map((t) => {
           const r = computeResilience(t);
           const d = daysUntil(t);
@@ -88,9 +89,6 @@ export default function Home() {
           <Sub>3. Stress test it: simulate delays, dropouts, cancellations, rain and budget cuts, then adopt Plan B fixes before anything goes wrong.</Sub>
         </Card>
 
-        <Pressable onPress={confirmReset} style={{ alignSelf: 'center', padding: S.md }}>
-          <Sub>Reset demo data</Sub>
-        </Pressable>
       </Screen>
     </View>
   );

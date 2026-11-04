@@ -11,7 +11,16 @@ npm install
 npx expo start      # then press i (iOS), a (Android) or w (web), or scan the QR code with Expo Go
 ```
 
-The app opens with a sample trip, **Lisbon Spring Break** (6 travelers, 5 days), so every feature can be demoed right away. Tap the avatar on the home screen to switch travelers and show multi-user collaboration from one device. "Reset demo data" restores the sample trip.
+The app opens with a sample trip, **Lisbon Spring Break** (6 travelers, 5 days), so every feature can be demoed right away. Tap your profile circle (top left of the home screen) to edit your name and avatar or sign out. Under **Demo tools** you can act as another traveler to show multi-user collaboration from one device, or reset the sample trip.
+
+## Sign-in setup (Firebase)
+
+1. Firebase console → **Project settings → General → Your apps** → add a **Web app** if you haven't, then copy its config into `src/lib/firebase-config.ts`.
+2. **Authentication → Sign-in method**: enable **Google** and **Email/Password**.
+3. **Authentication → Settings → Authorized domains**: add your Vercel domain (e.g. `triptwin.vercel.app`). `localhost` is there by default.
+4. Optional, for Google sign-in inside the iOS/Android app: put OAuth client IDs in `googleClientIds` in the same file. Email sign-in and the website don't need them.
+
+Without a config the app still runs: the login page offers **Try the demo without an account**.
 
 ## How it meets the "Together We Go" rubric
 

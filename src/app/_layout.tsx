@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { C } from '@/constants/theme';
+import { AuthProvider, useAuth } from '@/lib/auth';
 import { StoreProvider, useStore } from '@/lib/store';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -20,7 +21,10 @@ const modal = (title: string) => ({
 });
 
 function Root() {
-  const { ready } = useStore();
+  const { ready: dataReady } = useStore();
+  const { status } = useAuth();
+  const ready = dataReady && status !== 'loading';
+  const inApp = status === 'signedIn' || status === 'guest';
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
@@ -34,13 +38,19 @@ function Root() {
         headerTitleStyle: { color: C.text, fontWeight: '700' },
         contentStyle: { backgroundColor: C.bg },
       }}>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="trip/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="new-trip" options={modal('New trip')} />
-      <Stack.Screen name="join" options={modal('Join a trip')} />
-      <Stack.Screen name="profile" options={modal('Who are you?')} />
-      <Stack.Screen name="item" options={modal('Plan item')} />
-      <Stack.Screen name="expense" options={modal('Add expense')} />
+      {/* Signed-out visitors only ever see the login page. */}
+      <Stack.Protected guard={!inApp}>
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={inApp}>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="trip/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="new-trip" options={modal('New trip')} />
+        <Stack.Screen name="join" options={modal('Join a trip')} />
+        <Stack.Screen name="profile" options={modal('Profile & settings')} />
+        <Stack.Screen name="item" options={modal('Plan item')} />
+        <Stack.Screen name="expense" options={modal('Add expense')} />
+      </Stack.Protected>
     </Stack>
   );
 }
@@ -48,8 +58,10 @@ function Root() {
 export default function Layout() {
   return (
     <StoreProvider>
-      <StatusBar style="dark" />
-      <Root />
+      <AuthProvider>
+        <StatusBar style="dark" />
+        <Root />
+      </AuthProvider>
     </StoreProvider>
   );
 }

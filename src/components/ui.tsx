@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState, type ComponentProps, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 
 import { C, R, S, scoreColor } from '@/constants/theme';
 import type { User } from '@/lib/types';
@@ -78,9 +78,11 @@ export function Tag({ label, color, bg }: { label: string; color: string; bg: st
 }
 
 export function Avatar({ user, size = 30, ring }: { user?: User; size?: number; ring?: boolean }) {
+  const frame = { width: size, height: size, borderRadius: size / 2, borderWidth: ring ? 2 : 0, borderColor: '#fff' };
+  if (user?.photoURL) return <Image source={{ uri: user.photoURL }} style={frame} accessibilityLabel={user.name} />;
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: user?.color ?? C.faint, alignItems: 'center', justifyContent: 'center', borderWidth: ring ? 2 : 0, borderColor: '#fff' }}>
-      <Text style={{ color: '#fff', fontWeight: '800', fontSize: size * 0.42 }}>{user?.name[0] ?? '?'}</Text>
+    <View style={[frame, { backgroundColor: user?.color ?? C.faint, alignItems: 'center', justifyContent: 'center' }]}>
+      <Text style={{ color: '#fff', fontWeight: '800', fontSize: size * 0.42 }}>{user?.name?.[0]?.toUpperCase() ?? '?'}</Text>
     </View>
   );
 }
