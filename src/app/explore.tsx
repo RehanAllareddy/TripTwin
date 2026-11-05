@@ -191,7 +191,7 @@ export default function Explore() {
           <View style={{ paddingHorizontal: S.lg, gap: S.md, zIndex: 10 }}>
             {header}
             {searchAndActions}
-            {devUnverified && <DevBanner />}
+            {devUnverified && __DEV__ && <DevBanner />}
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: S.lg, gap: S.md }}>
             {panelBody}
@@ -207,7 +207,7 @@ export default function Explore() {
           <View style={{ position: 'absolute', top: insets.top + S.sm, left: S.md, right: S.md, gap: S.sm }} pointerEvents="box-none">
             {header}
             {searchAndActions}
-            {devUnverified && <DevBanner />}
+            {devUnverified && __DEV__ && <DevBanner />}
           </View>
         )}
 
@@ -334,7 +334,7 @@ function Legend({ hasTrips, bottom }: { hasTrips: boolean; bottom: number }) {
 function DevBanner() {
   return (
     <View style={{ backgroundColor: C.medSoft, borderRadius: R.md, padding: 10 }}>
-      <Text style={{ color: C.med, fontSize: 12, fontWeight: '600' }}>Development only: destinations aren't verified yet, so all are shown. Run `npm run verify:destinations` before release.</Text>
+      <Text style={{ color: C.med, fontSize: 12, fontWeight: '600' }}>Development note: destinations aren't verified yet, so all are shown and Street View is checked when opened. Run `npm run verify:destinations`.</Text>
     </View>
   );
 }

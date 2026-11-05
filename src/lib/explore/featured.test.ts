@@ -24,15 +24,14 @@ describe('dataset', () => {
 });
 
 describe('featuredDestinations', () => {
-  it('in production, only features destinations with verified Street View', () => {
-    const list = featuredDestinations(two, v, false);
+  it('once anything is verified, only features destinations with verified Street View', () => {
+    const list = featuredDestinations(two, v);
     assert.deepEqual(list.map((d) => d.id), ['lisbon']);
     assert.equal(list[0].placeId, v.lisbon.placeId);
     assert.equal(list[0].lat, 38.7, 'uses the verified coordinate');
   });
-  it('in production with nothing verified, features nothing', () => assert.equal(featuredDestinations(two, {}, false).length, 0));
-  it('in development with nothing verified, shows everything as unverified', () => {
-    const list = featuredDestinations(two, {}, true);
+  it('before verification has run, shows every destination (marked unverified) so Explore is never empty', () => {
+    const list = featuredDestinations(two, {});
     assert.equal(list.length, 2);
     assert.ok(list.every((d) => !d.verified));
   });

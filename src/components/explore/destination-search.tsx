@@ -24,7 +24,8 @@ export function DestinationSearch({ list, filter, onFilter, onSelect }: { list: 
 
   return (
     <View style={{ gap: S.sm, zIndex: 10 }}>
-      <View>
+      {/* zIndex keeps the suggestions above the filter row below it */}
+      <View style={{ zIndex: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: R.md, borderWidth: 1, borderColor: C.line, paddingHorizontal: 12, gap: 8 }}>
           <Icon name="search" color={C.sub} />
           <TextInput
@@ -67,7 +68,10 @@ export function DestinationSearch({ list, filter, onFilter, onSelect }: { list: 
             accessibilityLabel="Matching destinations"
             style={{ position: 'absolute', top: 52, left: 0, right: 0, backgroundColor: '#fff', borderRadius: R.md, borderWidth: 1, borderColor: C.line, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, elevation: 6 }}>
             {results.length === 0 ? (
-              <Text style={{ padding: S.md, color: C.sub }}>No destinations match “{query.trim()}”{filter !== 'all' ? ` in ${filter === 'city' ? 'cities' : 'towns'}` : ''}.</Text>
+              <View style={{ padding: S.md, gap: 4 }}>
+                <Text style={{ color: C.text, fontWeight: '600' }}>No featured place matches “{query.trim()}”{filter !== 'all' ? ` in ${filter === 'city' ? 'cities' : 'towns'}` : ''}.</Text>
+                <Text style={{ color: C.sub }}>Tip: tap anywhere on the globe to look around there in 360°.</Text>
+              </View>
             ) : (
               results.map((d, i) => (
                 <Pressable

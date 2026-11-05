@@ -81,7 +81,7 @@ export function PlaceCard({
         <View style={{ flex: 1, gap: 4 }}>
           <Row gap={6}>
             <Tag label={place.type === 'city' ? 'City' : 'Town'} color={place.type === 'city' ? C.primary : C.twin} bg={place.type === 'city' ? C.primarySoft : C.twinSoft} />
-            {!place.verified && <Tag label="Not yet verified (dev)" color={C.med} bg={C.medSoft} />}
+            {!place.verified && __DEV__ && <Tag label="Not yet verified (dev)" color={C.med} bg={C.medSoft} />}
           </Row>
           <Text style={{ fontSize: 24, fontWeight: '800', color: C.text }} accessibilityRole="header">{place.name}</Text>
           <Sub>{place.country} · {place.continent}</Sub>

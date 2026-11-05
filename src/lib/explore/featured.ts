@@ -25,18 +25,18 @@ export interface FeaturedDestination extends Destination {
 const VERIFIED = verifiedJson as Record<string, Verification>;
 
 /**
- * Only destinations with confirmed Street View coverage are featured.
- * In development, before the verification script has been run, everything is shown
- * (marked unverified) so the feature can be tried out. Production never does this.
+ * Once `npm run verify:destinations` has run, only destinations with confirmed Street View
+ * coverage are featured. Before that (nothing verified yet), every curated destination is
+ * shown so Explore isn't empty; "View in 360°" then checks coverage live before opening.
  */
-export function featuredDestinations(all: Destination[] = DESTINATIONS, verified: Record<string, Verification> = VERIFIED, isDev = __DEV__): FeaturedDestination[] {
+export function featuredDestinations(all: Destination[] = DESTINATIONS, verified: Record<string, Verification> = VERIFIED): FeaturedDestination[] {
   const anyVerified = Object.keys(verified).length > 0;
   return all
     .map((d) => {
       const v = verified[d.id];
       return v ? { ...d, lat: v.lat, lng: v.lng, placeId: v.placeId, panoId: v.panoId, verified: true } : { ...d, verified: false };
     })
-    .filter((d) => d.verified || (isDev && !anyVerified));
+    .filter((d) => d.verified || !anyVerified);
 }
 
 export const showingUnverified = (list: FeaturedDestination[]) => list.length > 0 && list.every((d) => !d.verified);

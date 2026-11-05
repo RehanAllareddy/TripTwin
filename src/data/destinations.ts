@@ -68,6 +68,7 @@ const ROWS: Row[] = [
   ['dubai', 'Dubai', 'United Arab Emirates', 'Asia', 'city', 25.1972, 55.2744, 1, 'Record-breaking towers, desert adventures and malls the size of small towns.'],
   ['kuala-lumpur', 'Kuala Lumpur', 'Malaysia', 'Asia', 'city', 3.1579, 101.7116, 2, 'Twin towers, colorful temples and a food scene mixing Malay, Chinese and Indian cooking.'],
   ['jaipur', 'Jaipur', 'India', 'Asia', 'city', 26.9239, 75.8267, 2, 'The Pink City: honeycomb palace windows, hilltop forts and bustling bazaars.'],
+  ['hyderabad', 'Hyderabad', 'India', 'Asia', 'city', 17.3616, 78.4747, 2, 'The City of Pearls: a 16th-century arch at its heart, bustling bazaars and legendary biryani.'],
   ['mumbai', 'Mumbai', 'India', 'Asia', 'city', 18.922, 72.8347, 3, 'Seafront promenades, grand colonial buildings and nonstop energy.'],
   ['jerusalem', 'Jerusalem', 'Israel', 'Asia', 'city', 31.7767, 35.2345, 3, 'An ancient walled city sacred to three faiths, layered with millennia of history.'],
   ['kathmandu', 'Kathmandu', 'Nepal', 'Asia', 'city', 27.7046, 85.307, 3, 'Temple squares, prayer flags and the gateway to Himalayan treks.'],
