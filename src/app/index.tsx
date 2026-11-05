@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Avatar, AvatarStack, Body, Button, Card, Empty, H2, Icon, Row, ScoreBadge, Screen, Sub, Tag } from '@/components/ui';
+import { Avatar, AvatarStack, Body, Button, Card, Empty, H2, Icon, OptionCard, Row, ScoreBadge, Screen, Sub, Tag } from '@/components/ui';
 import { C, S } from '@/constants/theme';
 import { computeResilience } from '@/lib/resilience';
 import { useStore } from '@/lib/store';
@@ -43,6 +43,8 @@ export default function Home() {
             <Button title="Join with code" icon="people" kind="ghost" onPress={() => router.push('/join')} />
           </View>
         </Row>
+
+        <OptionCard icon="earth" title="Explore the world" subtitle="Spin a 3D globe, find your next destination and look around in 360°" color={C.twin} bg={C.twinSoft} onPress={() => router.push('/explore')} />
 
         <H2>Your trips</H2>
         {mine.length === 0 && (

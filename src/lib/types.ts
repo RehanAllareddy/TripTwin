@@ -114,6 +114,8 @@ export interface Trip {
   ownerId: ID;
   memberIds: ID[];
   budget: number;
+  /** Where the trip is, for the Explore globe. Set when a trip is started from Explore. */
+  coords?: { lat: number; lng: number };
   items: ItineraryItem[];
   expenses: Expense[];
   messages: Message[];

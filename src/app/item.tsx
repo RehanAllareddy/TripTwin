@@ -36,11 +36,11 @@ function newItem(kind: ItemKind, day: number, attendeeIds: string[], tripDays: n
 const duration = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''}`);
 
 export default function ItemEditor() {
-  const { tripId, itemId, kind, day } = useLocalSearchParams<{ tripId: string; itemId?: string; kind?: ItemKind; day?: string }>();
+  const { tripId, itemId, kind, day, title, location } = useLocalSearchParams<{ tripId: string; itemId?: string; kind?: ItemKind; day?: string; title?: string; location?: string }>();
   const { t, update, me, user, post } = useTrip(tripId);
   const nav = useNavigation();
   const existing = t?.items.find((i) => i.id === itemId);
-  const [it, setIt] = useState<ItineraryItem>(() => existing ?? newItem(kind ?? 'activity', Number(day) || 0, t?.memberIds ?? [], t?.days ?? 1));
+  const [it, setIt] = useState<ItineraryItem>(() => existing ?? { ...newItem(kind ?? 'activity', Number(day) || 0, t?.memberIds ?? [], t?.days ?? 1), title: title ?? '', location: location || undefined });
   const [hasBackup, setHasBackup] = useState(!!existing?.backup);
   const [needsMin, setNeedsMin] = useState(!!existing?.minAttendees);
   const [costText, setCostText] = useState(existing?.cost ? String(existing.cost) : '');

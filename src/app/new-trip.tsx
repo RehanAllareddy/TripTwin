@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 
 import { Button, Card, Field, Screen, Stepper, Sub } from '@/components/ui';
@@ -7,8 +7,11 @@ import { useStore } from '@/lib/store';
 
 export default function NewTrip() {
   const { createTrip } = useStore();
-  const [name, setName] = useState('');
-  const [destination, setDestination] = useState('');
+  // Explore can pre-fill the destination (and its globe position) via params.
+  const p = useLocalSearchParams<{ destination?: string; lat?: string; lng?: string }>();
+  const coords = p.lat && p.lng && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)) ? { lat: Number(p.lat), lng: Number(p.lng) } : undefined;
+  const [name, setName] = useState(() => (p.destination ? `Trip to ${p.destination.split(',')[0]}` : ''));
+  const [destination, setDestination] = useState(p.destination ?? '');
   const [startDate, setStartDate] = useState(() => new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
   const [days, setDays] = useState(4);
   const [budget, setBudget] = useState(3000);
@@ -30,7 +33,7 @@ export default function NewTrip() {
         icon="checkmark"
         disabled={!valid}
         onPress={() => {
-          const id = createTrip({ name: name.trim(), destination: destination.trim(), startDate, days, budget });
+          const id = createTrip({ name: name.trim(), destination: destination.trim(), startDate, days, budget, coords });
           router.replace(`/trip/${id}`);
         }}
       />

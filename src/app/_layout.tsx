@@ -50,6 +50,9 @@ function Root() {
         <Stack.Screen name="profile" options={modal('Profile & settings')} />
         <Stack.Screen name="item" options={modal('Plan item')} />
         <Stack.Screen name="expense" options={modal('Add expense')} />
+        <Stack.Screen name="explore" options={{ headerShown: false }} />
+        {/* Full screen so Street View never shares the screen with the globe (Google Maps ToS 3.2.3(e)(ii)). */}
+        <Stack.Screen name="streetview" options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'fade' }} />
       </Stack.Protected>
     </Stack>
   );

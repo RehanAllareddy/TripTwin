@@ -16,7 +16,7 @@ interface Store {
   user: (id: ID) => User | undefined;
   trip: (id: ID) => Trip | undefined;
   updateTrip: (id: ID, fn: (t: Trip) => Trip) => void;
-  createTrip: (input: Pick<Trip, 'name' | 'destination' | 'startDate' | 'days' | 'budget'>) => ID;
+  createTrip: (input: Pick<Trip, 'name' | 'destination' | 'startDate' | 'days' | 'budget' | 'coords'>) => ID;
   joinTrip: (code: string) => ID | null;
   switchUser: (id: ID) => void;
   addUser: (name: string) => ID;
