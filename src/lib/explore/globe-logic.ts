@@ -5,8 +5,8 @@ export interface GlobeMarker {
   lat: number;
   lng: number;
   label: string;
-  /** 'trip' = one of the user's own trips; 'city' / 'town' = featured destinations. */
-  kind: 'trip' | 'city' | 'town';
+  /** 'trip' = one of the user's own trips; 'search' = a place the user searched; 'city' / 'town' = featured destinations. */
+  kind: 'trip' | 'search' | 'city' | 'town';
   tier: 1 | 2 | 3;
 }
 
@@ -45,12 +45,12 @@ const LABEL_MAX_ALT = 1.35;
 
 /** Fewer markers when zoomed out, more as you zoom in. Trips and the selection are always shown. */
 export function visibleMarkers(markers: GlobeMarker[], altitude: number, selectedId?: string) {
-  return markers.filter((m) => m.kind === 'trip' || m.id === selectedId || altitude <= TIER_MAX_ALT[m.tier]);
+  return markers.filter((m) => m.kind === 'trip' || m.kind === 'search' || m.id === selectedId || altitude <= TIER_MAX_ALT[m.tier]);
 }
 
 /** Labels only once zoomed in far enough to read them without clutter. */
 export function visibleLabels(markers: GlobeMarker[], altitude: number, selectedId?: string) {
-  if (altitude > LABEL_MAX_ALT) return markers.filter((m) => m.id === selectedId || m.kind === 'trip');
+  if (altitude > LABEL_MAX_ALT) return markers.filter((m) => m.id === selectedId || m.kind === 'trip' || m.kind === 'search');
   return markers;
 }
 
@@ -64,6 +64,7 @@ export function altitudeBucket(altitude: number) {
 
 export const MARKER_STYLE = {
   trip: { color: '#818CF8', radius: 0.55, label: '#C7D2FE' },
+  search: { color: '#F43F5E', radius: 0.5, label: '#FDA4AF' },
   city: { color: '#FFFFFF', radius: 0.32, label: '#FFFFFF' },
   town: { color: '#5EEAD4', radius: 0.3, label: '#99F6E4' },
   selected: { color: '#F97316', radius: 0.6, label: '#FDBA74' },

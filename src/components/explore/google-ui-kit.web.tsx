@@ -6,33 +6,8 @@
 import { createElement, useEffect, useRef } from 'react';
 import { View } from 'react-native';
 
-import { GOOGLE_MAPS_BROWSER_KEY } from '@/lib/explore/config';
-import { attractionsMarkup, destinationMarkup, googleMapsPlaceIdUrl, isValidPlaceId, mapsScriptUrl, type RatingsEvent, type RatingsTarget } from '@/lib/explore/ratings';
-
-type MapsWindow = Window & { google?: { maps?: { importLibrary?: (name: string) => Promise<unknown> } }; [k: string]: unknown };
-
-let placesReady: Promise<void> | null = null;
-
-/** Load the Maps JavaScript API + Places library once per page. */
-function loadPlaces(): Promise<void> {
-  if (placesReady) return placesReady;
-  placesReady = new Promise<void>((resolve, reject) => {
-    const w = window as unknown as MapsWindow;
-    const done = () => w.google!.maps!.importLibrary!('places').then(() => resolve(), reject);
-    if (w.google?.maps?.importLibrary) return void done();
-    const cb = '__tripTwinMapsReady';
-    w[cb] = done;
-    const s = document.createElement('script');
-    s.src = mapsScriptUrl(GOOGLE_MAPS_BROWSER_KEY, cb);
-    s.async = true;
-    s.onerror = () => {
-      placesReady = null; // allow a retry next time a card opens
-      reject(new Error('Maps JavaScript API failed to load'));
-    };
-    document.head.appendChild(s);
-  });
-  return placesReady;
-}
+import { loadPlaces } from '@/lib/explore/maps-loader';
+import { attractionsMarkup, destinationMarkup, googleMapsPlaceIdUrl, isValidPlaceId, type RatingsEvent, type RatingsTarget } from '@/lib/explore/ratings';
 
 /**
  * Whether Google rendered a rating. We only measure layout (we never read the rating itself).

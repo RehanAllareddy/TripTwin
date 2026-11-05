@@ -7,8 +7,8 @@ import { useEscape } from '@/lib/explore/use-escape';
 
 const STEPS: { icon: IconName; title: string; body: string }[] = [
   { icon: 'hand-left', title: 'Spin the globe', body: 'Drag to turn the Earth. Scroll or pinch to zoom in. More places appear as you get closer.' },
-  { icon: 'location', title: 'Pick a place', body: 'Tap a dot, search above, or choose from Popular destinations to see what it’s like.' },
-  { icon: 'eye', title: 'Look around in 360°', body: 'Tap “View in 360°” to stand on the street there. You can also tap anywhere on the globe.' },
+  { icon: 'search', title: 'Find any place', body: 'Search a city, address or restaurant (typos are fine), or choose from Popular destinations.' },
+  { icon: 'eye', title: 'Look around in 360°', body: 'Tap any dot, or anywhere on the globe, to stand on the street there in Google Street View.' },
 ];
 
 /** Short, skippable first-visit guide. */

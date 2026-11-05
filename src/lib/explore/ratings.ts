@@ -46,6 +46,35 @@ export function destinationMarkup(placeId: string) {
   ].join('');
 }
 
+/**
+ * Card for any place the user searched (restaurant, address, landmark…).
+ * Google draws everything here; after it loads, the element exposes the place's
+ * location, which we use to move the globe and find Street View (Places UI Kit flow).
+ */
+export function searchedPlaceMarkup(placeId: string) {
+  if (!isValidPlaceId(placeId)) throw new Error('Invalid place ID');
+  return [
+    '<gmp-place-details-compact orientation="vertical" style="width:100%;padding:0;margin:0;border:none;background-color:transparent;color-scheme:light">',
+    `<gmp-place-details-place-request place="${esc(placeId)}"></gmp-place-details-place-request>`,
+    '<gmp-place-name></gmp-place-name>',
+    '<gmp-place-rating></gmp-place-rating>',
+    '<gmp-place-type></gmp-place-type>',
+    '<gmp-place-address></gmp-place-address>',
+    '<gmp-place-open-now-status></gmp-place-open-now-status>',
+    '<gmp-place-attribution light-scheme-color="gray"></gmp-place-attribution>',
+    '</gmp-place-details-compact>',
+  ].join('');
+}
+
+/** Read the location Google exposes on a loaded UI Kit element (LatLng or literal). */
+export function locationFromUiKitPlace(place: unknown): { lat: number; lng: number } | null {
+  const loc = (place as { location?: { lat?: unknown; lng?: unknown } } | null | undefined)?.location;
+  if (!loc) return null;
+  const lat = typeof loc.lat === 'function' ? (loc.lat as () => number)() : Number(loc.lat);
+  const lng = typeof loc.lng === 'function' ? (loc.lng as () => number)() : Number(loc.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+
 /** Up to 3 relevant attractions near the destination, with Google's own rating display and attribution. */
 export function attractionsMarkup(t: Pick<RatingsTarget, 'name' | 'country' | 'lat' | 'lng'>) {
   const query = `top attractions in ${t.name}, ${t.country}`;

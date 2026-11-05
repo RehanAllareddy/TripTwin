@@ -59,17 +59,48 @@ export function nearestDestination<T extends { lat: number; lng: number }>(lat: 
   return best;
 }
 
-/** Case- and accent-insensitive search over name and country, best matches first. */
+const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+
+/** Optimal string alignment distance (Levenshtein + adjacent swaps), capped for speed. */
+export function editDistance(a: string, b: string, max = 3): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    let rowMin = Infinity;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      rowMin = Math.min(rowMin, d[i][j]);
+    }
+    if (rowMin > max) return max + 1;
+  }
+  return d[a.length][b.length];
+}
+
+/** How many typos to forgive for a query of this length. */
+const allowedTypos = (len: number) => (len <= 3 ? 0 : len <= 5 ? 1 : len <= 8 ? 2 : 3);
+
+/**
+ * Typo-tolerant search over name and country, best matches first.
+ * "barcelna" → Barcelona, "kyotto" → Kyoto, "cesky" → Český Krumlov.
+ */
 export function searchDestinations<T extends Pick<Destination, 'name' | 'country' | 'type'>>(list: T[], query: string, type: 'all' | 'city' | 'town' = 'all', limit = 8): T[] {
-  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const q = norm(query.trim());
+  const q = norm(query);
   const pool = type === 'all' ? list : list.filter((d) => d.type === type);
   if (!q) return pool.slice(0, limit);
+  const typos = allowedTypos(q.length);
   return pool
     .map((d) => {
       const n = norm(d.name);
       const c = norm(d.country);
-      const score = n.startsWith(q) ? 0 : n.includes(q) ? 1 : c.startsWith(q) ? 2 : c.includes(q) ? 3 : -1;
+      let score = n.startsWith(q) ? 0 : n.split(' ').some((w) => w.startsWith(q)) ? 1 : n.includes(q) ? 2 : c.startsWith(q) ? 3 : -1;
+      if (score < 0 && typos > 0) {
+        // Compare against the whole name and against the start of the name (for partial typing).
+        const dist = Math.min(editDistance(q, n, typos), editDistance(q, n.slice(0, q.length), typos), ...n.split(' ').map((w) => editDistance(q, w, typos)));
+        if (dist <= typos) score = 4 + dist;
+      }
       return { d, score };
     })
     .filter((x) => x.score >= 0)

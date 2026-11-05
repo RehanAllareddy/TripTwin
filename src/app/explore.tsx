@@ -1,20 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DestinationSearch, type TypeFilter } from '@/components/explore/destination-search';
 import { ExploreGuide } from '@/components/explore/explore-guide';
 import { GlobeView } from '@/components/explore/globe-view';
+import { GoogleSearch } from '@/components/explore/google-search';
+import { SearchedPlaceCard } from '@/components/explore/searched-place-card';
 import { PlaceCard } from '@/components/explore/place-card';
-import { Body, Button, Icon, Row, Sub, type IconName } from '@/components/ui';
+import { Body, Button, Icon, Row, Segmented, Sub, type IconName } from '@/components/ui';
 import { C, R, S } from '@/constants/theme';
 import { DESTINATIONS } from '@/data/destinations';
 import { distanceKm, featuredDestinations, nearestDestination, showingUnverified, type FeaturedDestination } from '@/lib/explore/featured';
 import { FOCUS_ALTITUDE, globeLabel, type GlobeFocus, type GlobeMarker } from '@/lib/explore/globe-logic';
 import { checkStreetView } from '@/lib/explore/streetview-client';
-import { radiusForAltitude } from '@/lib/explore/streetview-core';
+import { hasBrowserKey, SITE_URL } from '@/lib/explore/config';
+import { googleMapsPlaceIdUrl } from '@/lib/explore/ratings';
+import { radiusForAltitude, streetViewMapsUrl, type Radius } from '@/lib/explore/streetview-core';
 import { useEscape } from '@/lib/explore/use-escape';
 import { useStore } from '@/lib/store';
 import type { Trip } from '@/lib/types';
@@ -51,6 +55,13 @@ export default function Explore() {
   const [opening360, setOpening360] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [guide, setGuide] = useState(false);
+  /** A place found with Google search (any restaurant, address, landmark…). */
+  const [searched, setSearched] = useState<{ placeId: string; lat?: number; lng?: number; failed?: boolean } | null>(null);
+  const [googleSearchFailed, setGoogleSearchFailed] = useState(false);
+
+  // Embedding Street View / Google search needs the browser key (and, in the phone app, the site URL as origin).
+  const canEmbed = hasBrowserKey && (Platform.OS === 'web' || !!SITE_URL);
+  const googleSearchOn = canEmbed && !googleSearchFailed;
 
   const selected = featured.find((d) => d.id === selectedId);
   const visibleList = useMemo(() => (filter === 'all' ? featured : featured.filter((d) => d.type === filter)), [featured, filter]);
@@ -78,29 +89,71 @@ export default function Explore() {
       return { id: d.id, lat: d.lat, lng: d.lng, label: globeLabel(mine ? `${d.name} - your trip` : d.name), kind: d.type, tier: d.tier };
     });
     const tripMarkers: GlobeMarker[] = trips.map((x) => ({ id: `trip:${x.trip.id}`, lat: x.lat, lng: x.lng, label: x.near ? '' : globeLabel(`${x.trip.name} (your trip)`), kind: 'trip', tier: 1 }));
-    return [...dest, ...tripMarkers];
-  }, [visibleList, myTrips]);
+    const searchMarker: GlobeMarker[] = searched?.lat != null && searched.lng != null ? [{ id: 'search', lat: searched.lat, lng: searched.lng, label: '', kind: 'search', tier: 1 }] : [];
+    return [...dest, ...tripMarkers, ...searchMarker];
+  }, [visibleList, myTrips, searched]);
 
   const select = useCallback((d: FeaturedDestination) => {
+    setSearched(null);
     setSelectedId(d.id);
     setFocus({ lat: d.lat, lng: d.lng, altitude: FOCUS_ALTITUDE, nonce: Date.now() });
     setNotice(null);
     setSheetOpen(true);
   }, []);
 
+  const openViewer = (lat: number, lng: number, pano: string | undefined, name?: string) =>
+    router.push({ pathname: '/streetview', params: { lat: String(lat), lng: String(lng), ...(pano ? { pano } : {}), ...(name ? { name } : {}) } });
+
+  /**
+   * Show Street View for a spot, as reliably as the current setup allows:
+   * 1. a verified panorama → open it directly
+   * 2. otherwise ask TripTwin's server for the nearest panorama
+   * 3. if that check isn't available, let Google's viewer pick the closest imagery itself
+   * 4. with no Google key at all, open Street View in Google Maps (needs no setup)
+   */
+  const openStreetView = async (t: { lat: number; lng: number; panoId?: string; name?: string }, radius: Radius = 1000) => {
+    if (!canEmbed) return Linking.openURL(streetViewMapsUrl(t.lat, t.lng));
+    if (t.panoId) return openViewer(t.lat, t.lng, t.panoId, t.name);
+    setOpening360(true);
+    setNotice({ kind: 'checking' });
+    const r = await checkStreetView(t.lat, t.lng, radius);
+    setOpening360(false);
+    if (r.status === 'ok') {
+      setNotice(null);
+      openViewer(r.lat, r.lng, r.panoId, t.name);
+    } else if (r.status === 'none') {
+      setNotice({ kind: 'none', suggestion: nearestDestination(t.lat, t.lng, featured, 2500) ?? undefined });
+    } else {
+      setNotice(null);
+      openViewer(t.lat, t.lng, undefined, t.name);
+    }
+  };
+
+  // Clicking a place on the globe goes straight to its Street View; its card is waiting when you come back.
   const onMarkerPress = useCallback(
     (id: string) => {
+      if (id === 'search') {
+        if (searched?.lat != null && searched.lng != null) openStreetView({ lat: searched.lat, lng: searched.lng }, 250);
+        return;
+      }
       if (id.startsWith('trip:')) {
         const trip = myTrips.find((t) => `trip:${t.id}` === id);
+        const c = trip && tripCoords(trip);
         const match = trip && featured.find((d) => d.name.toLowerCase() === trip.destination.split(',')[0].trim().toLowerCase());
-        if (match) return select(match);
-        if (trip) router.push(`/trip/${trip.id}`);
+        if (match) select(match);
+        if (c) openStreetView({ ...c, name: trip?.name });
+        else if (trip) router.push(`/trip/${trip.id}`);
         return;
       }
       const d = featured.find((x) => x.id === id);
-      if (d) select(d);
+      if (d) {
+        select(d);
+        openStreetView(d);
+      }
     },
-    [featured, myTrips, select],
+    // openStreetView only reads state that is also listed here
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [featured, myTrips, select, searched, canEmbed],
   );
 
   const surprise = () => {
@@ -109,13 +162,11 @@ export default function Explore() {
     select(pool[Math.floor(Math.random() * pool.length)] ?? visibleList[0]);
   };
 
-  const openViewer = (lat: number, lng: number, pano: string | undefined, name?: string) =>
-    router.push({ pathname: '/streetview', params: { lat: String(lat), lng: String(lng), ...(pano ? { pano } : {}), ...(name ? { name } : {}) } });
-
   // Clicking empty globe: look for the nearest Street View imagery.
   const onGlobePress = useCallback(
     async (lat: number, lng: number, altitude: number) => {
       if (notice?.kind === 'checking') return;
+      if (!canEmbed) return Linking.openURL(streetViewMapsUrl(lat, lng));
       setNotice({ kind: 'checking' });
       const r = await checkStreetView(lat, lng, radiusForAltitude(altitude));
       if (r.status === 'ok') {
@@ -124,20 +175,24 @@ export default function Explore() {
       } else if (r.status === 'none') {
         setNotice({ kind: 'none', suggestion: nearestDestination(lat, lng, featured, 2500) ?? undefined });
       } else {
-        setNotice({ kind: 'error', message: "Couldn't check for Street View right now. Please try again." });
+        // Coverage check unavailable: Google's viewer will show the closest imagery (or say there is none).
+        setNotice(null);
+        openViewer(lat, lng, undefined);
       }
     },
-    [featured, notice?.kind],
+    [featured, notice?.kind, canEmbed],
   );
 
-  const view360 = async (d: FeaturedDestination) => {
-    if (d.panoId) return openViewer(d.lat, d.lng, d.panoId, d.name);
-    // Unverified (development only): check first so we never open an empty viewer.
-    setOpening360(true);
-    const r = await checkStreetView(d.lat, d.lng, 1000);
-    setOpening360(false);
-    if (r.status === 'ok') openViewer(r.lat, r.lng, r.panoId, d.name);
-    else setNotice(r.status === 'none' ? { kind: 'none' } : { kind: 'error', message: "Couldn't open the 360° view right now. Please try again." });
+  const view360 = (d: FeaturedDestination) => openStreetView(d);
+
+  const onGoogleSelect = (placeId: string) => {
+    // A Google result that is one of our verified destinations opens its richer card.
+    const known = featured.find((d) => d.placeId === placeId);
+    if (known) return select(known);
+    setSelectedId(undefined);
+    setNotice(null);
+    setSearched({ placeId });
+    setSheetOpen(true);
   };
 
   const addToTrip = (tripId: string, d: FeaturedDestination) =>
@@ -147,11 +202,28 @@ export default function Explore() {
 
   // Escape closes the place card (the guide and search handle their own Escape).
   useEscape(() => {
-    if (selectedId) setSelectedId(undefined);
+    if (searched) setSearched(null);
+    else if (selectedId) setSelectedId(undefined);
     else setNotice(null);
   }, !guide);
 
-  const panelBody = selected ? (
+  const panelBody = searched ? (
+    <SearchedPlaceCard
+      placeId={searched.placeId}
+      located={searched.lat != null}
+      failed={!!searched.failed}
+      trips={myTrips}
+      checking360={opening360}
+      onLocation={(loc) => {
+        setSearched((s) => (s ? { ...s, ...loc } : s));
+        setFocus({ ...loc, altitude: 0.35, nonce: Date.now() });
+      }}
+      onError={() => setSearched((s) => (s ? { ...s, failed: true } : s))}
+      onClose={() => setSearched(null)}
+      onView360={() => searched.lat != null && searched.lng != null && openStreetView({ lat: searched.lat, lng: searched.lng }, 250)}
+      onAddToTrip={(tripId) => router.push({ pathname: '/item', params: { tripId, kind: 'activity', location: googleMapsPlaceIdUrl(searched.placeId) } })}
+    />
+  ) : selected ? (
     <PlaceCard
       place={selected}
       trips={myTrips}
@@ -179,7 +251,23 @@ export default function Explore() {
 
   const searchAndActions = (
     <View style={{ gap: S.sm, zIndex: 10 }}>
-      <DestinationSearch list={featured} filter={filter} onFilter={setFilter} onSelect={select} />
+      {googleSearchOn ? (
+        <>
+          <GoogleSearch onSelect={onGoogleSelect} onError={() => setGoogleSearchFailed(true)} />
+          <Segmented
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'city', label: 'Cities' },
+              { value: 'town', label: 'Towns' },
+            ]}
+            value={filter}
+            onChange={setFilter}
+            color={C.twin}
+          />
+        </>
+      ) : (
+        <DestinationSearch list={featured} filter={filter} onFilter={setFilter} onSelect={select} />
+      )}
       <Button title="Surprise me" icon="shuffle" kind="ghost" small onPress={surprise} disabled={!visibleList.length} />
     </View>
   );
@@ -216,7 +304,7 @@ export default function Explore() {
         {notice && <NoticeToast notice={notice} onClose={() => setNotice(null)} onSuggest={select} at={wide ? { top: S.lg } : { bottom: 92 + insets.bottom }} />}
 
         {!wide && (
-          <BottomSheet open={sheetOpen || !!selected} onToggle={() => (selected ? setSelectedId(undefined) : setSheetOpen(!sheetOpen))} title={selected ? selected.name : 'Popular destinations'} bottomInset={insets.bottom}>
+          <BottomSheet open={sheetOpen || !!selected || !!searched} onToggle={() => (searched ? setSearched(null) : selected ? setSelectedId(undefined) : setSheetOpen(!sheetOpen))} title={searched ? 'Search result' : selected ? selected.name : 'Popular destinations'} bottomInset={insets.bottom}>
             {panelBody}
             <GoogleNotice />
           </BottomSheet>

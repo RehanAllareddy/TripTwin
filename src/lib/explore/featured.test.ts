@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { DESTINATIONS, type Destination } from '../../data/destinations';
-import { featuredDestinations, nearestDestination, searchDestinations, type Verification } from './featured';
+import { editDistance, featuredDestinations, nearestDestination, searchDestinations, type Verification } from './featured';
 
 const two: Destination[] = DESTINATIONS.filter((d) => d.id === 'lisbon' || d.id === 'hallstatt');
 const v: Record<string, Verification> = { lisbon: { placeId: 'ChIJO_PkYRozGQ0R0DaQ5L3rAAQ', panoId: 'p1', lat: 38.7, lng: -9.1, radius: 50, checkedAt: '2026-11-04' } };
@@ -46,5 +46,31 @@ describe('search and nearest', () => {
   it('finds the nearest featured destination within range, or none', () => {
     assert.equal(nearestDestination(38.8, -9.2, two)?.id, 'lisbon');
     assert.equal(nearestDestination(0, -150, two), null);
+  });
+});
+
+describe('typo-tolerant search', () => {
+  const top = (q: string) => searchDestinations(DESTINATIONS, q)[0]?.id;
+  it('finds places despite common typos', () => {
+    assert.equal(top('barcelna'), 'barcelona');
+    assert.equal(top('kyotto'), 'kyoto');
+    assert.equal(top('hydrabad'), 'hyderabad');
+    assert.equal(top('lisbn'), 'lisbon');
+    assert.equal(top('amsterdma'), 'amsterdam', 'swapped letters');
+    assert.equal(top('reykjavik'), 'reykjavik', 'missing accent');
+    assert.equal(top('quenstown'), 'queenstown');
+  });
+  it('matches the start of a later word and partial typing', () => {
+    assert.equal(top('krumlov'), 'cesky-krumlov');
+    assert.equal(top('buenos ai'), 'buenos-aires');
+  });
+  it('does not return random results for short or unrelated queries', () => {
+    assert.equal(searchDestinations(DESTINATIONS, 'zzqq').length, 0);
+    assert.ok(searchDestinations(DESTINATIONS, 'xyz').length === 0);
+  });
+  it('editDistance handles swaps and caps work', () => {
+    assert.equal(editDistance('abcd', 'abdc'), 1);
+    assert.equal(editDistance('kitten', 'sitting'), 3);
+    assert.ok(editDistance('a', 'abcdefgh', 2) > 2);
   });
 });

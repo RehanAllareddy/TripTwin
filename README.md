@@ -24,12 +24,15 @@ Without a config the app still runs: the login page offers **Try the demo withou
 
 ## Explore: 3D globe, Google ratings and 360° Street View
 
-Open **Explore the world** on the home screen. Spin the globe, pick a city or town (or tap anywhere), see Google Maps ratings and look around in 360°.
+Open **Explore the world** on the home screen. Spin the globe, search **any place** (city, address, restaurant, landmark; typos are fine), see Google Maps ratings, and tap any dot or anywhere on the globe to stand there in Street View.
+
+- **With the browser key:** search uses Google's Places UI Kit autocomplete (any place worldwide), and 360° views open in TripTwin's full-screen viewer.
+- **Without keys:** search covers the ~100 featured places with typo tolerance ("barcelna" → Barcelona), and Street View opens in Google Maps.
 
 ### One-time setup
 
 1. **Google Cloud project with billing**, then enable:
-   - **Places UI Kit** (`placewidgets.googleapis.com`) and **Maps JavaScript API**: ratings in place cards
+   - **Places UI Kit** (`placewidgets.googleapis.com`) and **Maps JavaScript API**: search any place, ratings and place cards
    - **Maps Embed API**: the 360° viewer
    - **Street View Static API**: Street View coverage checks (metadata only, free)
    - **Places API (New)**: only for the verification script's Place ID lookups (IDs-only, free)
@@ -39,7 +42,7 @@ Open **Explore the world** on the home screen. Spin the globe, pick a city or to
      - API restriction: Places UI Kit, Maps JavaScript API, Maps Embed API
    - **Server key** → `GOOGLE_MAPS_SERVER_KEY`
      - Application restriction: none (Vercel has no fixed IPs), so **API restriction is essential**: Street View Static API + Places API (New) only
-3. **Set quota caps** (APIs & Services → each API → Quotas) so costs can't run away, e.g. Places UI Kit 1,000/day. Add a billing budget alert.
+3. **Set quota caps** (APIs & Services → each API → Quotas) so costs can't run away, e.g. Places UI Kit 1,000/day. Add a billing budget alert. Search is billed per session ("Places UI Kit - Autocomplete Per Session": 10,000 free/month, then about $10 per 1,000).
 4. **Environment variables:** copy `.env.example` to `.env.local` for local use, and add the same four names in Vercel → Settings → Environment Variables. Never commit real keys.
 5. **Verify destinations** (writes `src/data/destinations.verified.json`, then commit that file):
    ```bash

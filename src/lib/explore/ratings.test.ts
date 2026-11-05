@@ -8,6 +8,8 @@ import {
   googleMapsPlaceUrl,
   initialRatingsState,
   isValidPlaceId,
+  locationFromUiKitPlace,
+  searchedPlaceMarkup,
   MSG,
   ratingsReducer,
   ratingsView,
@@ -127,5 +129,21 @@ describe('ratings state', () => {
     assert.equal(v.mountDestination, false);
     assert.equal(v.mountAttractions, false);
     assert.equal(v.destinationMessage, MSG.notConfigured);
+  });
+});
+
+describe('searched places (any restaurant, address or landmark)', () => {
+  it('shows Google attribution and only display fields Google renders itself', () => {
+    const html = searchedPlaceMarkup(PID);
+    assert.match(html, /<gmp-place-attribution[^>]*>/);
+    assert.match(html, /<gmp-place-name>/);
+    assert.ok(!html.includes('gmp-place-reviews'), 'no reviews');
+  });
+  it('reads the location from a Google LatLng or a literal, and rejects junk', () => {
+    assert.deepEqual(locationFromUiKitPlace({ location: { lat: () => 17.36, lng: () => 78.47 } }), { lat: 17.36, lng: 78.47 });
+    assert.deepEqual(locationFromUiKitPlace({ location: { lat: 1, lng: 2 } }), { lat: 1, lng: 2 });
+    assert.equal(locationFromUiKitPlace({ location: { lat: 'x', lng: 2 } }), null);
+    assert.equal(locationFromUiKitPlace({ location: { lat: 95, lng: 2 } }), null);
+    assert.equal(locationFromUiKitPlace(null), null);
   });
 });
